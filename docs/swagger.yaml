@@ -1,0 +1,1764 @@
+basePath: /
+definitions:
+  dto.ApplicationInput:
+    properties:
+      cover_letter:
+        type: string
+      resume_id:
+        type: string
+    type: object
+  dto.CompanyInput:
+    properties:
+      brand_name:
+        type: string
+      company_size:
+        type: string
+      description:
+        type: string
+      email_domain:
+        type: string
+      founded_year:
+        type: integer
+      hq_city_id:
+        type: integer
+      industry:
+        type: string
+      inn:
+        type: string
+      legal_name:
+        type: string
+      ogrn:
+        type: string
+      website_url:
+        type: string
+    type: object
+  dto.CompanyLinkInput:
+    properties:
+      link_type:
+        type: string
+      url:
+        type: string
+    type: object
+  dto.ContactRequestInput:
+    properties:
+      message:
+        type: string
+      receiver_user_id:
+        type: string
+      status:
+        type: string
+    type: object
+  dto.CuratorCreateInput:
+    properties:
+      curator_type:
+        type: string
+      display_name:
+        type: string
+      email:
+        type: string
+      password:
+        type: string
+    type: object
+  dto.EmployerProfileInput:
+    properties:
+      can_create_opportunities:
+        example: true
+        type: boolean
+      can_edit_company_profile:
+        example: true
+        type: boolean
+      is_company_owner:
+        example: true
+        type: boolean
+      position_title:
+        example: HR Lead
+        type: string
+    type: object
+  dto.LoginInput:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    type: object
+  dto.OpportunityInput:
+    properties:
+      application_deadline:
+        type: string
+      contacts_info:
+        type: string
+      employment_type:
+        type: string
+      event_end_at:
+        type: string
+      event_start_at:
+        type: string
+      expires_at:
+        type: string
+      external_url:
+        type: string
+      full_description:
+        type: string
+      is_salary_visible:
+        type: boolean
+      location_id:
+        type: string
+      opportunity_type:
+        type: string
+      salary_currency:
+        type: string
+      salary_max:
+        type: number
+      salary_min:
+        type: number
+      short_description:
+        type: string
+      status:
+        type: string
+      tag_ids:
+        items:
+          type: string
+        type: array
+      title:
+        type: string
+      vacancy_level:
+        type: string
+      work_format:
+        type: string
+    type: object
+  dto.PortfolioProjectInput:
+    properties:
+      demo_url:
+        type: string
+      description:
+        type: string
+      finished_at:
+        type: string
+      project_url:
+        type: string
+      repository_url:
+        type: string
+      started_at:
+        type: string
+      title:
+        type: string
+    type: object
+  dto.RecommendationInput:
+    properties:
+      message:
+        type: string
+      opportunity_id:
+        type: string
+      to_user_id:
+        type: string
+    type: object
+  dto.RegisterInput:
+    properties:
+      company_name:
+        example: Tramplin Tech
+        type: string
+      display_name:
+        example: Ivan Petrov
+        type: string
+      email:
+        example: student@tramplin.local
+        type: string
+      password:
+        example: secret123
+        type: string
+      role:
+        enum:
+        - student
+        - employer
+        example: student
+        type: string
+    type: object
+  dto.ResumeInput:
+    properties:
+      education_text:
+        type: string
+      experience_text:
+        type: string
+      summary:
+        type: string
+      title:
+        type: string
+    type: object
+  dto.StatusPayload:
+    properties:
+      comment:
+        example: Looks good
+        type: string
+      status:
+        example: approved
+        type: string
+    type: object
+  dto.StudentProfileInput:
+    properties:
+      about:
+        type: string
+      city_id:
+        type: integer
+      faculty:
+        type: string
+      first_name:
+        type: string
+      github_url:
+        type: string
+      graduation_year:
+        type: integer
+      last_name:
+        type: string
+      linkedin_url:
+        type: string
+      middle_name:
+        type: string
+      profile_visibility:
+        type: string
+      show_applications:
+        type: boolean
+      show_career_interests:
+        type: boolean
+      show_resume:
+        type: boolean
+      specialization:
+        type: string
+      study_year:
+        type: integer
+      telegram:
+        type: string
+      university_name:
+        type: string
+      website_url:
+        type: string
+    type: object
+  dto.VerificationInput:
+    properties:
+      corporate_email:
+        type: string
+      documents_comment:
+        type: string
+      inn_submitted:
+        type: string
+      verification_method:
+        type: string
+    type: object
+  handlers.ErrorResponse:
+    properties:
+      error:
+        example: bad request
+        type: string
+      status:
+        example: error
+        type: string
+    type: object
+  handlers.SuccessResponse:
+    properties:
+      data: {}
+      status:
+        example: ok
+        type: string
+    type: object
+info:
+  contact: {}
+  description: API платформы Трамплин.
+  title: API Трамплин
+  version: "1.0"
+paths:
+  /api/auth/curator/login:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Данные для входа куратора
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.LoginInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Вход куратора
+      tags:
+      - auth
+  /api/auth/login:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Данные для входа
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.LoginInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Вход пользователя
+      tags:
+      - auth
+  /api/auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Самостоятельная регистрация доступна только для ролей `student`
+        и `employer`. Поле `company_name` необязательно и используется только для
+        `employer`.
+      parameters:
+      - description: Данные регистрации
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.RegisterInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Регистрация пользователя
+      tags:
+      - auth
+  /api/cities:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Список городов
+      tags:
+      - public
+  /api/companies:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Список компаний
+      tags:
+      - public
+  /api/companies/{id}:
+    get:
+      parameters:
+      - description: ID компании
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Получить компанию по ID
+      tags:
+      - public
+  /api/curator/audit-logs:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Список записей аудита
+      tags:
+      - curator
+  /api/curator/company-verifications:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Список верификаций компаний
+      tags:
+      - curator
+  /api/curator/company-verifications/{id}:
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID верификации
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Данные решения
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.StatusPayload'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Принять решение по верификации компании
+      tags:
+      - curator
+  /api/curator/employer-profiles/{id}:
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID пользователя-работодателя
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Данные профиля работодателя
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.EmployerProfileInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Обновить профиль работодателя от имени куратора
+      tags:
+      - curator
+  /api/curator/moderation-queue:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Список очереди модерации
+      tags:
+      - curator
+  /api/curator/moderation-queue/{id}:
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID элемента очереди модерации
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Данные решения
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.StatusPayload'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Принять решение по элементу очереди модерации
+      tags:
+      - curator
+  /api/curator/opportunities/{id}/status:
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID возможности
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Данные статуса
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.StatusPayload'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Изменить статус возможности
+      tags:
+      - curator
+  /api/curator/student-profiles/{id}:
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID пользователя-студента
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Данные профиля студента
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.StudentProfileInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Обновить профиль студента от имени куратора
+      tags:
+      - curator
+  /api/curator/users:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Данные куратора
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CuratorCreateInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Создать куратора
+      tags:
+      - curator
+  /api/curator/users/{id}/status:
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID пользователя
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Данные статуса
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.StatusPayload'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Изменить статус пользователя
+      tags:
+      - curator
+  /api/employer/applications/{id}/status:
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID отклика
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Данные статуса
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.StatusPayload'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Изменить статус отклика
+      tags:
+      - employer
+  /api/employer/company:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Получить профиль компании работодателя
+      tags:
+      - employer
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Данные компании
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CompanyInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Обновить профиль компании работодателя
+      tags:
+      - employer
+  /api/employer/company-links:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Данные ссылки компании
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CompanyLinkInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Добавить ссылку компании
+      tags:
+      - employer
+  /api/employer/company-verifications:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Данные верификации
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.VerificationInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Отправить компанию на верификацию
+      tags:
+      - employer
+  /api/employer/opportunities:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Список возможностей работодателя
+      tags:
+      - employer
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Данные возможности
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.OpportunityInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Создать возможность
+      tags:
+      - employer
+  /api/employer/opportunities/{id}:
+    get:
+      parameters:
+      - description: ID возможности
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Получить возможность работодателя
+      tags:
+      - employer
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID возможности
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Данные возможности
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.OpportunityInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Обновить возможность работодателя
+      tags:
+      - employer
+  /api/employer/opportunities/{id}/applications:
+    get:
+      parameters:
+      - description: ID возможности
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Список откликов на возможность
+      tags:
+      - employer
+  /api/health:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Проверка состояния сервиса
+      tags:
+      - health
+  /api/locations:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Список локаций
+      tags:
+      - public
+  /api/me:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Получить текущего пользователя
+      tags:
+      - account
+  /api/me/applications:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Список моих откликов
+      tags:
+      - student
+  /api/me/avatar:
+    put:
+      consumes:
+      - multipart/form-data
+      parameters:
+      - description: Файл аватара
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Загрузить аватар пользователя
+      tags:
+      - account
+  /api/me/contact-requests:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Список запросов в контакты
+      tags:
+      - student
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Данные запроса в контакты
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ContactRequestInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Создать запрос в контакты
+      tags:
+      - student
+  /api/me/contact-requests/{id}:
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID запроса в контакты
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Данные запроса в контакты
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ContactRequestInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Изменить статус запроса в контакты
+      tags:
+      - student
+  /api/me/contacts:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Список контактов
+      tags:
+      - student
+  /api/me/favorite-companies:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Список избранных компаний
+      tags:
+      - student
+  /api/me/favorite-companies/{companyId}:
+    delete:
+      parameters:
+      - description: ID компании
+        in: path
+        name: companyId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Удалить компанию из избранного
+      tags:
+      - student
+    post:
+      parameters:
+      - description: ID компании
+        in: path
+        name: companyId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Добавить компанию в избранное
+      tags:
+      - student
+  /api/me/favorite-opportunities:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Список избранных возможностей
+      tags:
+      - student
+  /api/me/favorite-opportunities/{opportunityId}:
+    delete:
+      parameters:
+      - description: ID возможности
+        in: path
+        name: opportunityId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Удалить возможность из избранного
+      tags:
+      - student
+    post:
+      parameters:
+      - description: ID возможности
+        in: path
+        name: opportunityId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Добавить возможность в избранное
+      tags:
+      - student
+  /api/me/notifications:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Список уведомлений
+      tags:
+      - student
+  /api/me/portfolio-projects:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Список проектов портфолио
+      tags:
+      - student
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Данные проекта портфолио
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.PortfolioProjectInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Создать проект портфолио
+      tags:
+      - student
+  /api/me/recommendations:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Данные рекомендации
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.RecommendationInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Создать рекомендацию
+      tags:
+      - student
+  /api/me/resumes:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Список резюме
+      tags:
+      - student
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Данные резюме
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ResumeInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Создать резюме
+      tags:
+      - student
+  /api/me/resumes/{id}/primary:
+    patch:
+      parameters:
+      - description: ID резюме
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Сделать резюме основным
+      tags:
+      - student
+  /api/me/student-profile:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Получить профиль студента
+      tags:
+      - student
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Данные профиля студента
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.StudentProfileInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Обновить профиль студента
+      tags:
+      - student
+  /api/opportunities:
+    get:
+      parameters:
+      - description: Фильтр по тегу
+        in: query
+        name: tag
+        type: string
+      - description: Фильтр по формату работы
+        in: query
+        name: work_format
+        type: string
+      - description: Фильтр по типу возможности
+        in: query
+        name: type
+        type: string
+      - description: Поисковый запрос
+        in: query
+        name: search
+        type: string
+      - description: Минимальная зарплата
+        in: query
+        name: salary_from
+        type: number
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Список публичных возможностей
+      tags:
+      - public
+  /api/opportunities/{id}:
+    get:
+      parameters:
+      - description: ID возможности
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Получить возможность по ID
+      tags:
+      - public
+  /api/opportunities/{id}/applications:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID возможности
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Данные отклика
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ApplicationInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Откликнуться на возможность
+      tags:
+      - public
+  /api/opportunities/map:
+    get:
+      parameters:
+      - description: Фильтр по тегу
+        in: query
+        name: tag
+        type: string
+      - description: Фильтр по формату работы
+        in: query
+        name: work_format
+        type: string
+      - description: Фильтр по типу возможности
+        in: query
+        name: type
+        type: string
+      - description: Поисковый запрос
+        in: query
+        name: search
+        type: string
+      - description: Минимальная зарплата
+        in: query
+        name: salary_from
+        type: number
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Маркеры возможностей для карты
+      tags:
+      - public
+  /api/tags:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Список тегов
+      tags:
+      - public
+schemes:
+- http
+- https
+securityDefinitions:
+  BearerAuth:
+    description: 'Введите JWT в формате: Bearer {token}'
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

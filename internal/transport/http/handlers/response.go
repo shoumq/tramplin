@@ -9,6 +9,7 @@ import (
 )
 
 type Container struct {
+	Account  *AccountHandler
 	Auth     *AuthHandler
 	Public   *PublicHandler
 	Student  *StudentHandler
@@ -18,6 +19,7 @@ type Container struct {
 
 func New(services *service.Services) *Container {
 	return &Container{
+		Account:  &AccountHandler{service: services.Account},
 		Auth:     &AuthHandler{service: services.Auth},
 		Public:   &PublicHandler{service: services.Public},
 		Student:  &StudentHandler{service: services.Student},
@@ -48,9 +50,10 @@ func parseBody(c *fiber.Ctx, dst any) error {
 }
 
 func requiredUserID(c *fiber.Ctx) (string, error) {
-	userID := strings.TrimSpace(c.Get("X-User-ID"))
+	userID, _ := c.Locals("user_id").(string)
+	userID = strings.TrimSpace(userID)
 	if userID == "" {
-		return "", fiber.NewError(fiber.StatusUnauthorized, "X-User-ID header is required")
+		return "", fiber.NewError(fiber.StatusUnauthorized, "bearer token is required")
 	}
 	return userID, nil
 }

@@ -19,7 +19,7 @@ INSERT INTO users (
 VALUES (
     '00000000-0000-0000-0000-000000000001',
     'admin@tramplin.local',
-    '$2a$10$7sQxY8x0f3wV8Q6C9mT4fOq0G4dM4V5l7UQW9jI7o7g2M1A5w4n5K',
+    '6f403cce6bb38bd0a424f416cc7250372dd3977d6f4740cd1db4ab569400a8ac',
     'System Administrator',
     TRUE,
     'active',

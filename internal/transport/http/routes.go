@@ -2,14 +2,17 @@ package http
 
 import (
 	"github.com/gofiber/fiber/v2"
+	fiberSwagger "github.com/swaggo/fiber-swagger"
 
+	"tramplin/internal/authjwt"
 	"tramplin/internal/transport/http/handlers"
+	"tramplin/internal/transport/http/middleware"
 )
 
-func RegisterRoutes(app *fiber.App, h *handlers.Container) {
-	app.Get("/swagger", handlers.SwaggerUI)
-	app.Get("/swagger/", handlers.SwaggerUI)
-	app.Get("/swagger/doc.json", handlers.SwaggerJSON)
+func RegisterRoutes(app *fiber.App, h *handlers.Container, jwtManager *authjwt.Manager) {
+	app.Get("/docs", handlers.SwaggerRedirect)
+	app.Get("/docs/", handlers.SwaggerRedirect)
+	app.Get("/swagger/*", fiberSwagger.WrapHandler)
 
 	api := app.Group("/api")
 
@@ -23,14 +26,16 @@ func RegisterRoutes(app *fiber.App, h *handlers.Container) {
 	api.Get("/opportunities", h.Public.ListOpportunities)
 	api.Get("/opportunities/map", h.Public.ListOpportunityMarkers)
 	api.Get("/opportunities/:id", h.Public.GetOpportunity)
-	api.Post("/opportunities/:id/applications", h.Public.CreateApplication)
 	api.Get("/companies", h.Public.ListCompanies)
 	api.Get("/companies/:id", h.Public.GetCompany)
 	api.Get("/tags", h.Public.ListTags)
 	api.Get("/cities", h.Public.ListCities)
 	api.Get("/locations", h.Public.ListLocations)
+	api.Post("/opportunities/:id/applications", middleware.RequireJWT(jwtManager), h.Public.CreateApplication)
 
-	student := api.Group("/me")
+	api.Get("/me", middleware.RequireJWT(jwtManager), h.Account.GetMe)
+	student := api.Group("/me", middleware.RequireJWT(jwtManager))
+	student.Put("/avatar", h.Account.UploadAvatar)
 	student.Get("/student-profile", h.Student.GetProfile)
 	student.Put("/student-profile", h.Student.UpdateProfile)
 	student.Get("/resumes", h.Student.ListResumes)
@@ -52,7 +57,7 @@ func RegisterRoutes(app *fiber.App, h *handlers.Container) {
 	student.Post("/recommendations", h.Student.CreateRecommendation)
 	student.Get("/notifications", h.Student.ListNotifications)
 
-	employer := api.Group("/employer")
+	employer := api.Group("/employer", middleware.RequireJWT(jwtManager))
 	employer.Get("/company", h.Employer.GetCompanyProfile)
 	employer.Put("/company", h.Employer.UpdateCompanyProfile)
 	employer.Post("/company-links", h.Employer.CreateCompanyLink)
@@ -64,7 +69,7 @@ func RegisterRoutes(app *fiber.App, h *handlers.Container) {
 	employer.Get("/opportunities/:id/applications", h.Employer.ListOpportunityApplications)
 	employer.Patch("/applications/:id/status", h.Employer.UpdateApplicationStatus)
 
-	curator := api.Group("/curator")
+	curator := api.Group("/curator", middleware.RequireJWT(jwtManager))
 	curator.Post("/users", h.Curator.CreateUser)
 	curator.Patch("/users/:id/status", h.Curator.UpdateUserStatus)
 	curator.Patch("/student-profiles/:id", h.Curator.UpdateStudentProfile)

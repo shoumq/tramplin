@@ -1,4 +1,4 @@
-package domain
+package models
 
 import "time"
 
@@ -7,6 +7,8 @@ type User struct {
 	Email         string    `json:"email"`
 	PasswordHash  string    `json:"-"`
 	DisplayName   string    `json:"display_name"`
+	AvatarURL     string    `json:"avatar_url,omitempty"`
+	AvatarObject  string    `json:"avatar_object,omitempty"`
 	EmailVerified bool      `json:"email_verified"`
 	Status        string    `json:"status"`
 	LastLoginAt   time.Time `json:"last_login_at,omitempty"`
@@ -16,6 +18,7 @@ type User struct {
 
 type StudentProfile struct {
 	UserID              string    `json:"user_id"`
+	AvatarURL           string    `json:"avatar_url,omitempty"`
 	LastName            string    `json:"last_name"`
 	FirstName           string    `json:"first_name"`
 	MiddleName          string    `json:"middle_name,omitempty"`
@@ -40,6 +43,7 @@ type StudentProfile struct {
 
 type EmployerProfile struct {
 	UserID                 string    `json:"user_id"`
+	AvatarURL              string    `json:"avatar_url,omitempty"`
 	CompanyID              string    `json:"company_id"`
 	PositionTitle          string    `json:"position_title,omitempty"`
 	IsCompanyOwner         bool      `json:"is_company_owner"`
@@ -192,6 +196,7 @@ type Application struct {
 	ID                    string    `json:"id"`
 	OpportunityID         string    `json:"opportunity_id"`
 	StudentUserID         string    `json:"student_user_id"`
+	StudentAvatarURL      string    `json:"student_avatar_url,omitempty"`
 	ResumeID              string    `json:"resume_id,omitempty"`
 	CoverLetter           string    `json:"cover_letter,omitempty"`
 	Status                string    `json:"status"`
@@ -202,13 +207,15 @@ type Application struct {
 }
 
 type ContactRequest struct {
-	ID             string    `json:"id"`
-	SenderUserID   string    `json:"sender_user_id"`
-	ReceiverUserID string    `json:"receiver_user_id"`
-	Message        string    `json:"message,omitempty"`
-	Status         string    `json:"status"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
+	ID                string    `json:"id"`
+	SenderUserID      string    `json:"sender_user_id"`
+	ReceiverUserID    string    `json:"receiver_user_id"`
+	SenderAvatarURL   string    `json:"sender_avatar_url,omitempty"`
+	ReceiverAvatarURL string    `json:"receiver_avatar_url,omitempty"`
+	Message           string    `json:"message,omitempty"`
+	Status            string    `json:"status"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
 }
 
 type Recommendation struct {
@@ -258,7 +265,7 @@ type PublicOpportunity struct {
 	Opportunity
 	CompanyName string   `json:"company_name"`
 	Location    string   `json:"location"`
-	Tags        []string `json:"tags"`
+	Tags        []string `json:"tags,omitempty"`
 }
 
 type OpportunityMarker struct {
