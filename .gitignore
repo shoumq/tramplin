@@ -1,0 +1,8 @@
+.idea/
+.vscode/
+.gocache/
+.gomodcache/
+.gopath/
+bin/
+dist/
+.env
