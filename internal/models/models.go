@@ -146,6 +146,8 @@ type Opportunity struct {
 	EmploymentType      string    `json:"employment_type,omitempty"`
 	WorkFormat          string    `json:"work_format"`
 	LocationID          string    `json:"location_id,omitempty"`
+	Latitude            float64   `json:"latitude,omitempty"`
+	Longitude           float64   `json:"longitude,omitempty"`
 	SalaryMin           float64   `json:"salary_min,omitempty"`
 	SalaryMax           float64   `json:"salary_max,omitempty"`
 	SalaryCurrency      string    `json:"salary_currency,omitempty"`
