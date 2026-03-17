@@ -956,7 +956,7 @@ func (r *Repository) ListEmployerOpportunities(userID string) ([]Opportunity, er
 	result := []Opportunity{}
 	for _, item := range r.opportunities {
 		if item.CompanyID == profile.CompanyID {
-			result = append(result, *item)
+			result = append(result, r.opportunityWithLocationLocked(item))
 		}
 	}
 	return result, nil
@@ -985,7 +985,8 @@ func (r *Repository) CreateOpportunity(opportunity Opportunity) (*Opportunity, e
 	r.opportunities[cp.ID] = &cp
 	r.addModerationItem("opportunity", cp.ID, opportunity.CreatedByUserID)
 	r.addAudit("create", "opportunities", cp.ID, opportunity.CreatedByUserID, cp.Title)
-	return &cp, nil
+	result := r.opportunityWithLocationLocked(&cp)
+	return &result, nil
 }
 
 func (r *Repository) GetEmployerOpportunity(userID, opportunityID string) (*Opportunity, error) {
@@ -999,7 +1000,7 @@ func (r *Repository) GetEmployerOpportunity(userID, opportunityID string) (*Oppo
 	if !ok || opp.CompanyID != profile.CompanyID {
 		return nil, errors.New("opportunity not found")
 	}
-	cp := *opp
+	cp := r.opportunityWithLocationLocked(opp)
 	return &cp, nil
 }
 
@@ -1040,7 +1041,7 @@ func (r *Repository) UpdateEmployerOpportunity(userID string, opportunity Opport
 		existing.TagIDs = opportunity.TagIDs
 	}
 	existing.UpdatedAt = time.Now()
-	cp := *existing
+	cp := r.opportunityWithLocationLocked(existing)
 	return &cp, nil
 }
 
@@ -1195,7 +1196,7 @@ func (r *Repository) UpdateOpportunityStatus(curatorID, opportunityID, status st
 	}
 	opp.UpdatedAt = time.Now()
 	r.addAudit("status_change", "opportunities", opportunityID, curatorID, status)
-	cp := *opp
+	cp := r.opportunityWithLocationLocked(opp)
 	return &cp, nil
 }
 
@@ -1236,7 +1237,17 @@ func (r *Repository) publicOpportunityLocked(id string) (*PublicOpportunity, err
 			tags = append(tags, tag.Name)
 		}
 	}
-	return &PublicOpportunity{Opportunity: *opp, CompanyName: companyName, Location: locationLabel, Tags: tags}, nil
+	enriched := r.opportunityWithLocationLocked(opp)
+	return &PublicOpportunity{Opportunity: enriched, CompanyName: companyName, Location: locationLabel, Tags: tags}, nil
+}
+
+func (r *Repository) opportunityWithLocationLocked(opp *Opportunity) Opportunity {
+	cp := *opp
+	if location, ok := r.locations[opp.LocationID]; ok {
+		cp.Latitude = location.Latitude
+		cp.Longitude = location.Longitude
+	}
+	return cp
 }
 
 func matchesFilter(item PublicOpportunity, filter repository.OpportunityFilter) bool {
