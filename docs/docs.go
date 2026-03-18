@@ -2750,6 +2750,13 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "verification_method": {
+                    "enum": [
+                        "corporate_email",
+                        "inn_check",
+                        "manual_documents",
+                        "social_links_review",
+                        "combined"
+                    ],
                     "type": "string"
                 }
             }

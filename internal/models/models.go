@@ -91,6 +91,7 @@ type CompanyLink struct {
 type CompanyVerification struct {
 	ID                 string    `json:"id"`
 	CompanyID          string    `json:"company_id"`
+	CompanyName        string    `json:"company_name,omitempty"`
 	VerificationMethod string    `json:"verification_method"`
 	SubmittedByUserID  string    `json:"submitted_by_user_id"`
 	CorporateEmail     string    `json:"corporate_email,omitempty"`

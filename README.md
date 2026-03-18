@@ -26,6 +26,46 @@ docker compose up --build
 
 При запуске приложения миграции применяются автоматически.
 
+## Миграции и PostgreSQL
+
+После перевода репозитория на обычные PostgreSQL-таблицы приложение больше не использует `repository_state`. Если нужно вручную прогнать миграции и удалить старую таблицу состояния, используйте команды ниже.
+
+Для Docker Compose:
+
+```bash
+docker compose down
+docker compose up -d db
+docker compose run --rm app goose -dir ./migrations postgres "postgres://tramplin:tramplin@db:5432/tramplin?sslmode=disable" up
+docker compose up -d --build app
+```
+
+Для запуска миграций с хоста:
+
+```bash
+goose -dir ./migrations postgres "postgres://tramplin:tramplin@localhost:5433/tramplin?sslmode=disable" up
+```
+
+Проверить, что `repository_state` удалён:
+
+```bash
+psql "postgres://tramplin:tramplin@localhost:5433/tramplin?sslmode=disable" -c "select to_regclass('public.repository_state');"
+```
+
+Ожидаемый результат: `NULL`.
+
+Проверить, что пользователи и роли лежат в обычных таблицах:
+
+```bash
+psql "postgres://tramplin:tramplin@localhost:5433/tramplin?sslmode=disable" -c "
+select u.id, u.email, u.display_name, array_agg(r.code order by r.id) as roles
+from users u
+left join user_roles ur on ur.user_id = u.id
+left join roles r on r.id = ur.role_id
+group by u.id, u.email, u.display_name
+order by u.created_at desc;
+"
+```
+
 ## Локальный запуск без Docker
 
 Нужны:

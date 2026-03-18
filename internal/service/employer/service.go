@@ -1,6 +1,8 @@
 package employer
 
 import (
+	"fmt"
+	"strings"
 	"time"
 
 	"tramplin/internal/dto"
@@ -39,7 +41,17 @@ func (s *Service) CreateCompanyLink(userID string, input dto.CompanyLinkInput) (
 }
 
 func (s *Service) SubmitVerification(userID string, input dto.VerificationInput) (*models.CompanyVerification, error) {
-	return s.repo.SubmitCompanyVerification(userID, input.VerificationMethod, input.CorporateEmail, input.INNSubmitted, input.DocumentsComment)
+	method, err := normalizeVerificationMethod(input.VerificationMethod)
+	if err != nil {
+		return nil, err
+	}
+	if method == "corporate_email" && strings.TrimSpace(input.CorporateEmail) == "" {
+		return nil, fmt.Errorf("corporate_email is required for verification_method=corporate_email")
+	}
+	if method == "inn_check" && strings.TrimSpace(input.INNSubmitted) == "" {
+		return nil, fmt.Errorf("inn_submitted is required for verification_method=inn_check")
+	}
+	return s.repo.SubmitCompanyVerification(userID, method, input.CorporateEmail, input.INNSubmitted, input.DocumentsComment)
 }
 
 func (s *Service) ListOpportunities(userID string) ([]models.Opportunity, error) {
@@ -102,4 +114,22 @@ func parseTime(value string) time.Time {
 		return time.Time{}
 	}
 	return parsed
+}
+
+func normalizeVerificationMethod(method string) (string, error) {
+	normalized := strings.ToLower(strings.TrimSpace(method))
+	switch normalized {
+	case "corporate_email", "email", "corporate", "corporate_mail":
+		return "corporate_email", nil
+	case "inn_check", "inn":
+		return "inn_check", nil
+	case "manual_documents", "documents", "docs", "manual":
+		return "manual_documents", nil
+	case "social_links_review", "social_review", "social_links":
+		return "social_links_review", nil
+	case "combined", "all":
+		return "combined", nil
+	default:
+		return "", fmt.Errorf("verification_method must be one of: corporate_email, inn_check, manual_documents, social_links_review, combined")
+	}
 }

@@ -1,6 +1,9 @@
 package curator
 
 import (
+	"fmt"
+	"strings"
+
 	"tramplin/internal/dto"
 	"tramplin/internal/models"
 	"tramplin/internal/repository"
@@ -67,7 +70,11 @@ func (s *Service) ListCompanyVerifications() ([]models.CompanyVerification, erro
 }
 
 func (s *Service) ReviewCompanyVerification(actorID, verificationID, status, comment string) (*models.CompanyVerification, error) {
-	return s.repo.ReviewCompanyVerification(verificationID, actorID, status, comment)
+	normalized, err := normalizeCompanyVerificationReviewStatus(status)
+	if err != nil {
+		return nil, err
+	}
+	return s.repo.ReviewCompanyVerification(verificationID, actorID, normalized, comment)
 }
 
 func (s *Service) UpdateOpportunityStatus(actorID, opportunityID, status string) (*models.Opportunity, error) {
@@ -76,4 +83,18 @@ func (s *Service) UpdateOpportunityStatus(actorID, opportunityID, status string)
 
 func (s *Service) ListAuditLogs() ([]models.AuditLog, error) {
 	return s.repo.ListAuditLogs()
+}
+
+func normalizeCompanyVerificationReviewStatus(status string) (string, error) {
+	normalized := strings.ToLower(strings.TrimSpace(status))
+	switch normalized {
+	case "approved", "approve", "accept", "accepted":
+		return "approved", nil
+	case "rejected", "reject", "declined", "decline":
+		return "rejected", nil
+	case "needs_revision", "revision", "needs_changes", "changes_requested":
+		return "needs_revision", nil
+	default:
+		return "", fmt.Errorf("status must be one of: approved, rejected, needs_revision")
+	}
 }
