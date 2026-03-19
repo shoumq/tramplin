@@ -62,7 +62,7 @@ func New(cfg config.Config) (*fiber.App, error) {
 	jwtManager := authjwt.New(cfg.JWTSecret, cfg.JWTTTL)
 
 	services := service.New(repo, objectStorage, jwtManager)
-	httpHandlers := handlers.New(services)
+	httpHandlers := handlers.New(services, jwtManager)
 
 	httptransport.RegisterRoutes(application, httpHandlers, jwtManager)
 

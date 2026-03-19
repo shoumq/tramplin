@@ -5,22 +5,25 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
+	"tramplin/internal/authjwt"
 	"tramplin/internal/service"
 )
 
 type Container struct {
 	Account  *AccountHandler
 	Auth     *AuthHandler
+	Chat     *ChatHandler
 	Public   *PublicHandler
 	Student  *StudentHandler
 	Employer *EmployerHandler
 	Curator  *CuratorHandler
 }
 
-func New(services *service.Services) *Container {
+func New(services *service.Services, jwtManager *authjwt.Manager) *Container {
 	return &Container{
 		Account:  &AccountHandler{service: services.Account},
 		Auth:     &AuthHandler{service: services.Auth},
+		Chat:     NewChatHandler(services.Chat, jwtManager),
 		Public:   &PublicHandler{service: services.Public},
 		Student:  &StudentHandler{service: services.Student},
 		Employer: &EmployerHandler{service: services.Employer},

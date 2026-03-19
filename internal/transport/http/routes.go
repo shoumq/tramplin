@@ -22,6 +22,7 @@ func RegisterRoutes(app *fiber.App, h *handlers.Container, jwtManager *authjwt.M
 	auth.Post("/register", h.Auth.Register)
 	auth.Post("/login", h.Auth.Login)
 	auth.Post("/curator/login", h.Auth.CuratorLogin)
+	api.Get("/ws/chat", h.Chat.WebSocket)
 
 	api.Get("/opportunities", h.Public.ListOpportunities)
 	api.Get("/opportunities/map", h.Public.ListOpportunityMarkers)
@@ -56,6 +57,10 @@ func RegisterRoutes(app *fiber.App, h *handlers.Container, jwtManager *authjwt.M
 	student.Patch("/contact-requests/:id", h.Student.UpdateContactRequestStatus)
 	student.Post("/recommendations", h.Student.CreateRecommendation)
 	student.Get("/notifications", h.Student.ListNotifications)
+	student.Get("/chats", h.Chat.ListConversations)
+	student.Post("/chats", h.Chat.CreateConversation)
+	student.Get("/chats/:id/messages", h.Chat.ListMessages)
+	student.Post("/chats/:id/messages", h.Chat.CreateMessage)
 
 	employer := api.Group("/employer", middleware.RequireJWT(jwtManager))
 	employer.Get("/company", h.Employer.GetCompanyProfile)

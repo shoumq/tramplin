@@ -259,7 +259,35 @@ type Notification struct {
 	IsRead            bool      `json:"is_read"`
 	RelatedEntityType string    `json:"related_entity_type,omitempty"`
 	RelatedEntityID   string    `json:"related_entity_id,omitempty"`
+	OpportunityTitle  string    `json:"opportunity_title,omitempty"`
+	CompanyLegalName  string    `json:"company_legal_name,omitempty"`
+	EmployerContacts  string    `json:"employer_contacts,omitempty"`
+	EmployerUserID    string    `json:"employer_user_id,omitempty"`
 	CreatedAt         time.Time `json:"created_at"`
+}
+
+type ChatConversation struct {
+	ID                   string    `json:"id"`
+	OpportunityID        string    `json:"opportunity_id,omitempty"`
+	OpportunityTitle     string    `json:"opportunity_title,omitempty"`
+	CompanyLegalName     string    `json:"company_legal_name,omitempty"`
+	ParticipantUserID    string    `json:"participant_user_id"`
+	ParticipantName      string    `json:"participant_name"`
+	ParticipantAvatarURL string    `json:"participant_avatar_url,omitempty"`
+	LastMessage          string    `json:"last_message,omitempty"`
+	LastMessageAt        time.Time `json:"last_message_at,omitempty"`
+	CreatedAt            time.Time `json:"created_at"`
+	UpdatedAt            time.Time `json:"updated_at"`
+}
+
+type ChatMessage struct {
+	ID              string    `json:"id"`
+	ConversationID  string    `json:"conversation_id"`
+	SenderUserID    string    `json:"sender_user_id"`
+	SenderName      string    `json:"sender_name"`
+	SenderAvatarURL string    `json:"sender_avatar_url,omitempty"`
+	Body            string    `json:"body"`
+	CreatedAt       time.Time `json:"created_at"`
 }
 
 type PublicOpportunity struct {

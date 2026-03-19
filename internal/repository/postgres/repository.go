@@ -1076,7 +1076,7 @@ VALUES ($1, $2, $3, NULLIF($4, ''), $5, $6, $7)
 	if err != nil {
 		return nil, fmt.Errorf("create contact request: %w", err)
 	}
-	r.notify(receiverUserID, "contact_request_received", "New contact request", "You have a new professional contact request.", "contact_request", item.ID)
+	r.notify(receiverUserID, "contact_request_received", "Новый запрос в контакты", "Вам пришёл новый запрос на профессиональный контакт.", "contact_request", item.ID)
 	items, err := r.ListContactRequests(receiverUserID)
 	if err == nil {
 		for _, request := range items {
@@ -1116,7 +1116,7 @@ WHERE id = $1
 	if status == "accepted" {
 		r.addContact(item.SenderUserID, item.ReceiverUserID)
 		r.addContact(item.ReceiverUserID, item.SenderUserID)
-		r.notify(item.SenderUserID, "contact_request_accepted", "Contact request accepted", "Your contact request has been accepted.", "contact_request", item.ID)
+		r.notify(item.SenderUserID, "contact_request_accepted", "Запрос в контакты принят", "Ваш запрос на контакт был принят.", "contact_request", item.ID)
 	}
 	items, err := r.ListContactRequests(userID)
 	if err == nil {
@@ -1143,15 +1143,38 @@ VALUES ($1, $2, $3, $4, NULLIF($5, ''), $6)
 	if err != nil {
 		return nil, fmt.Errorf("create recommendation: %w", err)
 	}
-	r.notify(rec.ToUserID, "recommendation_received", "New recommendation", "Another student recommended an opportunity to you.", "opportunity", rec.OpportunityID)
+	title, body := r.recommendationNotificationText(rec.OpportunityID)
+	r.notify(rec.ToUserID, "recommendation_received", title, body, "opportunity", rec.OpportunityID)
 	return &rec, nil
 }
 
 func (r *Repository) ListNotifications(userID string) ([]Notification, error) {
 	rows, err := r.db.QueryContext(context.Background(), `
-SELECT id, user_id, type, title, body, is_read, COALESCE(related_entity_type, ''), COALESCE(related_entity_id::text, ''), created_at
-FROM notifications
-WHERE user_id = $1
+SELECT
+	n.id,
+	n.user_id,
+	n.type,
+	n.title,
+	n.body,
+	n.is_read,
+	COALESCE(n.related_entity_type, ''),
+	COALESCE(n.related_entity_id::text, ''),
+	COALESCE(o_direct.title, o_from_application.title, ''),
+	COALESCE(c_direct.legal_name, c_from_application.legal_name, ''),
+	COALESCE(o_direct.contacts_info, o_from_application.contacts_info, ''),
+	COALESCE(o_direct.created_by_user_id::text, o_from_application.created_by_user_id::text, ''),
+	n.created_at
+FROM notifications n
+LEFT JOIN opportunities o_direct
+	ON n.related_entity_type = 'opportunity'
+	AND o_direct.id = n.related_entity_id
+LEFT JOIN companies c_direct ON c_direct.id = o_direct.company_id
+LEFT JOIN applications a
+	ON n.related_entity_type = 'application'
+	AND a.id = n.related_entity_id
+LEFT JOIN opportunities o_from_application ON o_from_application.id = a.opportunity_id
+LEFT JOIN companies c_from_application ON c_from_application.id = o_from_application.company_id
+WHERE n.user_id = $1
 ORDER BY created_at DESC
 `, userID)
 	if err != nil {
@@ -1162,7 +1185,7 @@ ORDER BY created_at DESC
 	var result []Notification
 	for rows.Next() {
 		var item Notification
-		if err := rows.Scan(&item.ID, &item.UserID, &item.Type, &item.Title, &item.Body, &item.IsRead, &item.RelatedEntityType, &item.RelatedEntityID, &item.CreatedAt); err != nil {
+		if err := rows.Scan(&item.ID, &item.UserID, &item.Type, &item.Title, &item.Body, &item.IsRead, &item.RelatedEntityType, &item.RelatedEntityID, &item.OpportunityTitle, &item.CompanyLegalName, &item.EmployerContacts, &item.EmployerUserID, &item.CreatedAt); err != nil {
 			return nil, fmt.Errorf("scan notifications: %w", err)
 		}
 		result = append(result, item)
@@ -1171,6 +1194,226 @@ ORDER BY created_at DESC
 		return nil, fmt.Errorf("iterate notifications: %w", err)
 	}
 	return result, nil
+}
+
+func (r *Repository) CreateChatConversation(userID, participantUserID, opportunityID string) (*ChatConversation, error) {
+	userID = strings.TrimSpace(userID)
+	participantUserID = strings.TrimSpace(participantUserID)
+	opportunityID = strings.TrimSpace(opportunityID)
+	if userID == "" || participantUserID == "" {
+		return nil, errors.New("participant_user_id is required")
+	}
+	if userID == participantUserID {
+		return nil, errors.New("cannot create chat with yourself")
+	}
+	if _, err := r.getUserByID(context.Background(), participantUserID); err != nil {
+		return nil, err
+	}
+
+	aID, bID := orderedUserIDs(userID, participantUserID)
+	var existingID string
+	err := r.db.QueryRowContext(context.Background(), `
+SELECT id
+FROM chat_conversations
+WHERE participant_a_user_id = $1
+  AND participant_b_user_id = $2
+  AND (
+      (opportunity_id = NULLIF($3, '')::uuid)
+      OR (opportunity_id IS NULL AND NULLIF($3, '')::uuid IS NULL)
+  )
+`, aID, bID, opportunityID).Scan(&existingID)
+	if err == nil {
+		return r.GetChatConversation(userID, existingID)
+	}
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("check existing chat conversation: %w", err)
+	}
+
+	conversationID := uuid.NewString()
+	now := time.Now()
+	if _, err := r.db.ExecContext(context.Background(), `
+INSERT INTO chat_conversations (
+	id, participant_a_user_id, participant_b_user_id, opportunity_id, created_at, updated_at
+)
+VALUES ($1, $2, $3, NULLIF($4, '')::uuid, $5, $6)
+`, conversationID, aID, bID, opportunityID, now, now); err != nil {
+		return nil, fmt.Errorf("create chat conversation: %w", err)
+	}
+	return r.GetChatConversation(userID, conversationID)
+}
+
+func (r *Repository) GetChatConversation(userID, conversationID string) (*ChatConversation, error) {
+	var item ChatConversation
+	var participantName string
+	var participantAvatarURL sql.NullString
+	var lastMessage sql.NullString
+	var lastMessageAt sql.NullTime
+	err := r.db.QueryRowContext(context.Background(), `
+SELECT
+	c.id,
+	COALESCE(c.opportunity_id::text, ''),
+	COALESCE(o.title, ''),
+	COALESCE(comp.legal_name, ''),
+	CASE WHEN c.participant_a_user_id = $1 THEN c.participant_b_user_id ELSE c.participant_a_user_id END AS participant_user_id,
+	u.display_name,
+	COALESCE(u.avatar_url, ''),
+	COALESCE(last_message.body, ''),
+	last_message.created_at,
+	c.created_at,
+	c.updated_at
+FROM chat_conversations c
+JOIN users u ON u.id = CASE WHEN c.participant_a_user_id = $1 THEN c.participant_b_user_id ELSE c.participant_a_user_id END
+LEFT JOIN opportunities o ON o.id = c.opportunity_id
+LEFT JOIN companies comp ON comp.id = o.company_id
+LEFT JOIN LATERAL (
+	SELECT body, created_at
+	FROM chat_messages
+	WHERE conversation_id = c.id
+	ORDER BY created_at DESC
+	LIMIT 1
+) AS last_message ON TRUE
+WHERE c.id = $2
+  AND ($1 = c.participant_a_user_id OR $1 = c.participant_b_user_id)
+`, userID, conversationID).Scan(&item.ID, &item.OpportunityID, &item.OpportunityTitle, &item.CompanyLegalName, &item.ParticipantUserID, &participantName, &participantAvatarURL, &lastMessage, &lastMessageAt, &item.CreatedAt, &item.UpdatedAt)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errors.New("chat conversation not found")
+		}
+		return nil, fmt.Errorf("get chat conversation: %w", err)
+	}
+	item.ParticipantName = participantName
+	if participantAvatarURL.Valid {
+		item.ParticipantAvatarURL = participantAvatarURL.String
+	}
+	if lastMessage.Valid {
+		item.LastMessage = lastMessage.String
+	}
+	if lastMessageAt.Valid {
+		item.LastMessageAt = lastMessageAt.Time
+	}
+	return &item, nil
+}
+
+func (r *Repository) ListChatConversations(userID string) ([]ChatConversation, error) {
+	rows, err := r.db.QueryContext(context.Background(), `
+SELECT
+	c.id,
+	COALESCE(c.opportunity_id::text, ''),
+	COALESCE(o.title, ''),
+	COALESCE(comp.legal_name, ''),
+	CASE WHEN c.participant_a_user_id = $1 THEN c.participant_b_user_id ELSE c.participant_a_user_id END AS participant_user_id,
+	u.display_name,
+	COALESCE(u.avatar_url, ''),
+	COALESCE(last_message.body, ''),
+	last_message.created_at,
+	c.created_at,
+	c.updated_at
+FROM chat_conversations c
+JOIN users u ON u.id = CASE WHEN c.participant_a_user_id = $1 THEN c.participant_b_user_id ELSE c.participant_a_user_id END
+LEFT JOIN opportunities o ON o.id = c.opportunity_id
+LEFT JOIN companies comp ON comp.id = o.company_id
+LEFT JOIN LATERAL (
+	SELECT body, created_at
+	FROM chat_messages
+	WHERE conversation_id = c.id
+	ORDER BY created_at DESC
+	LIMIT 1
+) AS last_message ON TRUE
+WHERE c.participant_a_user_id = $1 OR c.participant_b_user_id = $1
+ORDER BY COALESCE(last_message.created_at, c.updated_at) DESC
+`, userID)
+	if err != nil {
+		return nil, fmt.Errorf("list chat conversations: %w", err)
+	}
+	defer rows.Close()
+
+	var result []ChatConversation
+	for rows.Next() {
+		var item ChatConversation
+		var participantName string
+		var participantAvatarURL sql.NullString
+		var lastMessage sql.NullString
+		var lastMessageAt sql.NullTime
+		if err := rows.Scan(&item.ID, &item.OpportunityID, &item.OpportunityTitle, &item.CompanyLegalName, &item.ParticipantUserID, &participantName, &participantAvatarURL, &lastMessage, &lastMessageAt, &item.CreatedAt, &item.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("scan chat conversations: %w", err)
+		}
+		item.ParticipantName = participantName
+		if participantAvatarURL.Valid {
+			item.ParticipantAvatarURL = participantAvatarURL.String
+		}
+		if lastMessage.Valid {
+			item.LastMessage = lastMessage.String
+		}
+		if lastMessageAt.Valid {
+			item.LastMessageAt = lastMessageAt.Time
+		}
+		result = append(result, item)
+	}
+	return result, rows.Err()
+}
+
+func (r *Repository) ListChatMessages(userID, conversationID string) ([]ChatMessage, error) {
+	if _, err := r.GetChatConversation(userID, conversationID); err != nil {
+		return nil, err
+	}
+	rows, err := r.db.QueryContext(context.Background(), `
+SELECT m.id, m.conversation_id, m.sender_user_id, u.display_name, COALESCE(u.avatar_url, ''), m.body, m.created_at
+FROM chat_messages m
+JOIN users u ON u.id = m.sender_user_id
+WHERE m.conversation_id = $1
+ORDER BY m.created_at ASC
+`, conversationID)
+	if err != nil {
+		return nil, fmt.Errorf("list chat messages: %w", err)
+	}
+	defer rows.Close()
+
+	var result []ChatMessage
+	for rows.Next() {
+		var item ChatMessage
+		if err := rows.Scan(&item.ID, &item.ConversationID, &item.SenderUserID, &item.SenderName, &item.SenderAvatarURL, &item.Body, &item.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan chat messages: %w", err)
+		}
+		result = append(result, item)
+	}
+	return result, rows.Err()
+}
+
+func (r *Repository) CreateChatMessage(userID, conversationID, body string) (*ChatMessage, error) {
+	body = strings.TrimSpace(body)
+	if body == "" {
+		return nil, errors.New("message body is required")
+	}
+	if _, err := r.GetChatConversation(userID, conversationID); err != nil {
+		return nil, err
+	}
+	item := &ChatMessage{
+		ID:             uuid.NewString(),
+		ConversationID: conversationID,
+		SenderUserID:   userID,
+		Body:           body,
+		CreatedAt:      time.Now(),
+	}
+	if _, err := r.db.ExecContext(context.Background(), `
+INSERT INTO chat_messages (id, conversation_id, sender_user_id, body, created_at)
+VALUES ($1, $2, $3, $4, $5)
+`, item.ID, item.ConversationID, item.SenderUserID, item.Body, item.CreatedAt); err != nil {
+		return nil, fmt.Errorf("create chat message: %w", err)
+	}
+	if _, err := r.db.ExecContext(context.Background(), `
+UPDATE chat_conversations
+SET updated_at = $2
+WHERE id = $1
+`, conversationID, item.CreatedAt); err != nil {
+		return nil, fmt.Errorf("update chat conversation timestamp: %w", err)
+	}
+	sender, err := r.getUserByID(context.Background(), userID)
+	if err != nil {
+		return nil, err
+	}
+	item.SenderName = sender.DisplayName
+	item.SenderAvatarURL = sender.AvatarURL
+	return item, nil
 }
 
 func (r *Repository) ListOpportunities(filter repository.OpportunityFilter) ([]PublicOpportunity, error) {
@@ -1288,7 +1531,7 @@ WHERE id = $1
 	if err == nil {
 		application.StudentAvatarURL = user.AvatarURL
 	}
-	r.notify(opportunity.CreatedByUserID, "application_submitted", "New application", "A student applied to your opportunity.", "application", application.ID)
+	r.notify(opportunity.CreatedByUserID, "application_submitted", "Новый отклик", "Студент откликнулся на вашу возможность.", "application", application.ID)
 	return &application, nil
 }
 
@@ -1764,7 +2007,7 @@ VALUES ($1, $2, NULL, $3, $4, $5)
 `, uuid.NewString(), application.ID, application.Status, userID, application.StatusChangedAt); err != nil {
 		return nil, fmt.Errorf("insert application status history: %w", err)
 	}
-	r.notify(application.StudentUserID, "application_status_changed", "Application status changed", fmt.Sprintf("Your application status is now: %s", status), "application", application.ID)
+	r.notify(application.StudentUserID, "application_status_changed", "Статус отклика изменён", fmt.Sprintf("Ваш отклик теперь имеет статус: %s", applicationStatusLabel(status)), "application", application.ID)
 	return &application, nil
 }
 
@@ -1773,6 +2016,66 @@ func zeroableFloat(v float64) any {
 		return nil
 	}
 	return v
+}
+
+func applicationStatusLabel(status string) string {
+	switch status {
+	case "submitted":
+		return "отправлен"
+	case "in_review":
+		return "на рассмотрении"
+	case "accepted":
+		return "принят"
+	case "rejected":
+		return "отклонён"
+	case "reserve":
+		return "в резерве"
+	case "withdrawn":
+		return "отозван"
+	default:
+		return status
+	}
+}
+
+func orderedUserIDs(a, b string) (string, string) {
+	if strings.Compare(a, b) <= 0 {
+		return a, b
+	}
+	return b, a
+}
+
+func (r *Repository) recommendationNotificationText(opportunityID string) (string, string) {
+	var opportunityTitle sql.NullString
+	var companyLegalName sql.NullString
+	var contactsInfo sql.NullString
+	err := r.db.QueryRowContext(context.Background(), `
+SELECT COALESCE(o.title, ''), COALESCE(c.legal_name, ''), COALESCE(o.contacts_info, '')
+FROM opportunities o
+JOIN companies c ON c.id = o.company_id
+WHERE o.id = $1
+`, opportunityID).Scan(&opportunityTitle, &companyLegalName, &contactsInfo)
+	if err != nil {
+		return "Новое приглашение", "Вас пригласили рассмотреть возможность."
+	}
+
+	title := "Новое приглашение"
+	if companyLegalName.String != "" {
+		title = fmt.Sprintf("Приглашение от компании %s", companyLegalName.String)
+	}
+
+	bodyParts := []string{}
+	if opportunityTitle.String != "" {
+		bodyParts = append(bodyParts, fmt.Sprintf("Вас пригласили на возможность \"%s\".", opportunityTitle.String))
+	} else {
+		bodyParts = append(bodyParts, "Вас пригласили рассмотреть возможность.")
+	}
+	if companyLegalName.String != "" {
+		bodyParts = append(bodyParts, fmt.Sprintf("Компания: %s.", companyLegalName.String))
+	}
+	if contactsInfo.String != "" {
+		bodyParts = append(bodyParts, fmt.Sprintf("Контакты работодателя: %s.", contactsInfo.String))
+	}
+	return title, strings.Join(bodyParts, " ")
 }
 
 func (r *Repository) UpdateEmployerProfile(userID string, profile EmployerProfile, actorID string) (*EmployerProfile, error) {
