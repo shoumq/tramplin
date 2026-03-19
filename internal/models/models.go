@@ -3,17 +3,19 @@ package models
 import "time"
 
 type User struct {
-	ID            string    `json:"id"`
-	Email         string    `json:"email"`
-	PasswordHash  string    `json:"-"`
-	DisplayName   string    `json:"display_name"`
-	AvatarURL     string    `json:"avatar_url,omitempty"`
-	AvatarObject  string    `json:"avatar_object,omitempty"`
-	EmailVerified bool      `json:"email_verified"`
-	Status        string    `json:"status"`
-	LastLoginAt   time.Time `json:"last_login_at,omitempty"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
+	ID            string     `json:"id"`
+	Email         string     `json:"email"`
+	PasswordHash  string     `json:"-"`
+	DisplayName   string     `json:"display_name"`
+	AvatarURL     string     `json:"avatar_url,omitempty"`
+	AvatarObject  string     `json:"avatar_object,omitempty"`
+	EmailVerified bool       `json:"email_verified"`
+	Status        string     `json:"status"`
+	LastLoginAt   time.Time  `json:"last_login_at,omitempty"`
+	IsOnline      bool       `json:"is_online"`
+	LastSeenAt    *time.Time `json:"last_seen_at,omitempty"`
+	CreatedAt     time.Time  `json:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at"`
 }
 
 type StudentProfile struct {
@@ -63,21 +65,25 @@ type CuratorProfile struct {
 }
 
 type Company struct {
-	ID          string    `json:"id"`
-	LegalName   string    `json:"legal_name"`
-	BrandName   string    `json:"brand_name,omitempty"`
-	Description string    `json:"description,omitempty"`
-	Industry    string    `json:"industry,omitempty"`
-	WebsiteURL  string    `json:"website_url,omitempty"`
-	EmailDomain string    `json:"email_domain,omitempty"`
-	INN         string    `json:"inn,omitempty"`
-	OGRN        string    `json:"ogrn,omitempty"`
-	CompanySize string    `json:"company_size,omitempty"`
-	FoundedYear int       `json:"founded_year,omitempty"`
-	HQCityID    int64     `json:"hq_city_id,omitempty"`
-	Status      string    `json:"status"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID           string     `json:"id"`
+	LegalName    string     `json:"legal_name"`
+	BrandName    string     `json:"brand_name,omitempty"`
+	AvatarURL    string     `json:"avatar_url,omitempty"`
+	AvatarObject string     `json:"avatar_object,omitempty"`
+	Description  string     `json:"description,omitempty"`
+	Industry     string     `json:"industry,omitempty"`
+	WebsiteURL   string     `json:"website_url,omitempty"`
+	EmailDomain  string     `json:"email_domain,omitempty"`
+	INN          string     `json:"inn,omitempty"`
+	OGRN         string     `json:"ogrn,omitempty"`
+	CompanySize  string     `json:"company_size,omitempty"`
+	FoundedYear  int        `json:"founded_year,omitempty"`
+	HQCityID     int64      `json:"hq_city_id,omitempty"`
+	Status       string     `json:"status"`
+	IsOnline     bool       `json:"is_online"`
+	LastSeenAt   *time.Time `json:"last_seen_at,omitempty"`
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
 }
 
 type CompanyLink struct {
@@ -267,34 +273,48 @@ type Notification struct {
 }
 
 type ChatConversation struct {
-	ID                   string    `json:"id"`
-	OpportunityID        string    `json:"opportunity_id,omitempty"`
-	OpportunityTitle     string    `json:"opportunity_title,omitempty"`
-	CompanyLegalName     string    `json:"company_legal_name,omitempty"`
-	ParticipantUserID    string    `json:"participant_user_id"`
-	ParticipantName      string    `json:"participant_name"`
-	ParticipantAvatarURL string    `json:"participant_avatar_url,omitempty"`
-	LastMessage          string    `json:"last_message,omitempty"`
-	LastMessageAt        time.Time `json:"last_message_at,omitempty"`
-	CreatedAt            time.Time `json:"created_at"`
-	UpdatedAt            time.Time `json:"updated_at"`
+	ID                    string     `json:"id"`
+	OpportunityID         string     `json:"opportunity_id,omitempty"`
+	OpportunityTitle      string     `json:"opportunity_title,omitempty"`
+	CompanyLegalName      string     `json:"company_legal_name,omitempty"`
+	ParticipantUserID     string     `json:"participant_user_id"`
+	ParticipantName       string     `json:"participant_name"`
+	ParticipantAvatarURL  string     `json:"participant_avatar_url,omitempty"`
+	ParticipantIsOnline   bool       `json:"participant_is_online"`
+	ParticipantLastSeenAt *time.Time `json:"participant_last_seen_at,omitempty"`
+	LastMessage           string     `json:"last_message,omitempty"`
+	LastMessageAt         time.Time  `json:"last_message_at,omitempty"`
+	UnreadCount           int        `json:"unread_count"`
+	CreatedAt             time.Time  `json:"created_at"`
+	UpdatedAt             time.Time  `json:"updated_at"`
 }
 
 type ChatMessage struct {
-	ID              string    `json:"id"`
-	ConversationID  string    `json:"conversation_id"`
-	SenderUserID    string    `json:"sender_user_id"`
-	SenderName      string    `json:"sender_name"`
-	SenderAvatarURL string    `json:"sender_avatar_url,omitempty"`
-	Body            string    `json:"body"`
-	CreatedAt       time.Time `json:"created_at"`
+	ID              string     `json:"id"`
+	ConversationID  string     `json:"conversation_id"`
+	SenderUserID    string     `json:"sender_user_id"`
+	SenderName      string     `json:"sender_name"`
+	SenderAvatarURL string     `json:"sender_avatar_url,omitempty"`
+	SenderIsOnline  bool       `json:"sender_is_online"`
+	Body            string     `json:"body"`
+	IsRead          bool       `json:"is_read"`
+	ReadAt          *time.Time `json:"read_at,omitempty"`
+	CreatedAt       time.Time  `json:"created_at"`
+}
+
+type Presence struct {
+	UserID     string     `json:"user_id,omitempty"`
+	CompanyID  string     `json:"company_id,omitempty"`
+	IsOnline   bool       `json:"is_online"`
+	LastSeenAt *time.Time `json:"last_seen_at,omitempty"`
 }
 
 type PublicOpportunity struct {
 	Opportunity
-	CompanyName string   `json:"company_name"`
-	Location    string   `json:"location"`
-	Tags        []string `json:"tags,omitempty"`
+	CompanyName      string   `json:"company_name"`
+	CompanyAvatarURL string   `json:"company_avatar_url,omitempty"`
+	Location         string   `json:"location"`
+	Tags             []string `json:"tags,omitempty"`
 }
 
 type OpportunityMarker struct {

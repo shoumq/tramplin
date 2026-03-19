@@ -40,7 +40,7 @@ func New(cfg config.Config) (*fiber.App, error) {
 		AppName: cfg.AppName,
 	})
 
-	repo, err := postgres.NewRepository(ctx, cfg.DatabaseURL)
+	repo, err := postgres.NewRepository(ctx, cfg.DatabaseURL, cfg.S3PublicURL, cfg.S3Bucket)
 	if err != nil {
 		return nil, fmt.Errorf("create repository: %w", err)
 	}

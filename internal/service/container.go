@@ -31,7 +31,7 @@ func New(repo repository.PlatformRepository, storage storage.Storage, jwtManager
 		Chat:     chatservice.New(repo),
 		Public:   publicservice.New(repo),
 		Student:  studentservice.New(repo),
-		Employer: employerservice.New(repo),
+		Employer: employerservice.New(repo, storage),
 		Curator:  curatorservice.New(repo),
 	}
 }

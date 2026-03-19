@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"path"
 	"strings"
 	"sync"
 	"time"
@@ -19,8 +20,10 @@ import (
 )
 
 type Repository struct {
-	mu sync.RWMutex
-	db *sql.DB
+	mu            sync.RWMutex
+	db            *sql.DB
+	publicBaseURL string
+	bucket        string
 }
 
 type dbExecutor interface {
@@ -31,7 +34,7 @@ type rowScanner interface {
 	Scan(dest ...any) error
 }
 
-func NewRepository(ctx context.Context, dsn string) (*Repository, error) {
+func NewRepository(ctx context.Context, dsn, publicBaseURL, bucket string) (*Repository, error) {
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("open postgres connection: %w", err)
@@ -40,7 +43,11 @@ func NewRepository(ctx context.Context, dsn string) (*Repository, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("ping postgres: %w", err)
 	}
-	return &Repository{db: db}, nil
+	return &Repository{
+		db:            db,
+		publicBaseURL: strings.TrimRight(publicBaseURL, "/"),
+		bucket:        strings.Trim(strings.TrimSpace(bucket), "/"),
+	}, nil
 }
 
 func (r *Repository) persistLocked() {}
@@ -101,12 +108,14 @@ func (r *Repository) upsertCompanyTx(ctx context.Context, tx *sql.Tx, company *C
 	execTarget := sqlExecTarget(r.db, tx)
 	_, err := execTarget.ExecContext(ctx, `
 INSERT INTO companies (
-	id, legal_name, brand_name, description, industry, website_url, email_domain, inn, ogrn, company_size, founded_year, hq_city_id, status, created_at, updated_at
+	id, legal_name, brand_name, avatar_url, avatar_object, description, industry, website_url, email_domain, inn, ogrn, company_size, founded_year, hq_city_id, status, created_at, updated_at
 )
-VALUES ($1, $2, NULLIF($3, ''), NULLIF($4, ''), NULLIF($5, ''), NULLIF($6, ''), NULLIF($7, ''), NULLIF($8, ''), NULLIF($9, ''), NULLIF($10, ''), NULLIF($11, 0), NULLIF($12, 0), $13, $14, $15)
+VALUES ($1, $2, NULLIF($3, ''), NULLIF($4, ''), NULLIF($5, ''), NULLIF($6, ''), NULLIF($7, ''), NULLIF($8, ''), NULLIF($9, ''), NULLIF($10, ''), NULLIF($11, ''), NULLIF($12, ''), NULLIF($13, 0), NULLIF($14, 0), $15, $16, $17)
 ON CONFLICT (id) DO UPDATE SET
 	legal_name = EXCLUDED.legal_name,
 	brand_name = EXCLUDED.brand_name,
+	avatar_url = EXCLUDED.avatar_url,
+	avatar_object = EXCLUDED.avatar_object,
 	description = EXCLUDED.description,
 	industry = EXCLUDED.industry,
 	website_url = EXCLUDED.website_url,
@@ -119,7 +128,7 @@ ON CONFLICT (id) DO UPDATE SET
 	status = EXCLUDED.status,
 	created_at = EXCLUDED.created_at,
 	updated_at = EXCLUDED.updated_at
-`, company.ID, company.LegalName, company.BrandName, company.Description, company.Industry, company.WebsiteURL, company.EmailDomain, company.INN, company.OGRN, company.CompanySize, zeroableInt(company.FoundedYear), zeroableInt64(company.HQCityID), company.Status, company.CreatedAt, company.UpdatedAt)
+`, company.ID, company.LegalName, company.BrandName, company.AvatarURL, company.AvatarObject, company.Description, company.Industry, company.WebsiteURL, company.EmailDomain, company.INN, company.OGRN, company.CompanySize, zeroableInt(company.FoundedYear), zeroableInt64(company.HQCityID), company.Status, company.CreatedAt, company.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("upsert company %s: %w", company.ID, err)
 	}
@@ -284,16 +293,46 @@ func splitDisplayName(displayName string) (string, string) {
 	return parts[0], strings.Join(parts[1:], " ")
 }
 
+func (r *Repository) legacyMediaURL(storagePath string) string {
+	storagePath = strings.TrimLeft(strings.TrimSpace(storagePath), "/")
+	if storagePath == "" {
+		return ""
+	}
+	if strings.HasPrefix(storagePath, "http://") || strings.HasPrefix(storagePath, "https://") {
+		return storagePath
+	}
+	if r.publicBaseURL == "" || r.bucket == "" {
+		return ""
+	}
+	return fmt.Sprintf("%s/%s/%s", r.publicBaseURL, r.bucket, path.Clean(storagePath))
+}
+
 func (r *Repository) getUserByID(ctx context.Context, id string) (*User, error) {
 	var user User
 	var avatarURL sql.NullString
 	var avatarObject sql.NullString
 	var lastLoginAt sql.NullTime
+	var lastSeenAt sql.NullTime
 	err := r.db.QueryRowContext(ctx, `
-SELECT id, email, password_hash, display_name, COALESCE(avatar_url, ''), COALESCE(avatar_object, ''), email_verified, status, last_login_at, created_at, updated_at
+SELECT
+	u.id,
+	u.email,
+	u.password_hash,
+	u.display_name,
+	COALESCE(u.avatar_url, ''),
+	COALESCE(u.avatar_object, ''),
+	u.email_verified,
+	u.status,
+	u.last_login_at,
+	COALESCE(up.is_online, FALSE),
+	up.last_seen_at,
+	u.created_at,
+	u.updated_at
 FROM users
-WHERE id = $1
-`, id).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.DisplayName, &avatarURL, &avatarObject, &user.EmailVerified, &user.Status, &lastLoginAt, &user.CreatedAt, &user.UpdatedAt)
+u
+LEFT JOIN user_presence up ON up.user_id = u.id
+WHERE u.id = $1
+`, id).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.DisplayName, &avatarURL, &avatarObject, &user.EmailVerified, &user.Status, &lastLoginAt, &user.IsOnline, &lastSeenAt, &user.CreatedAt, &user.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.New("user not found")
@@ -309,6 +348,9 @@ WHERE id = $1
 	if lastLoginAt.Valid {
 		user.LastLoginAt = lastLoginAt.Time
 	}
+	if lastSeenAt.Valid {
+		user.LastSeenAt = &lastSeenAt.Time
+	}
 	return &user, nil
 }
 
@@ -317,11 +359,27 @@ func (r *Repository) getUserByEmail(ctx context.Context, email string) (*User, e
 	var avatarURL sql.NullString
 	var avatarObject sql.NullString
 	var lastLoginAt sql.NullTime
+	var lastSeenAt sql.NullTime
 	err := r.db.QueryRowContext(ctx, `
-SELECT id, email, password_hash, display_name, COALESCE(avatar_url, ''), COALESCE(avatar_object, ''), email_verified, status, last_login_at, created_at, updated_at
+SELECT
+	u.id,
+	u.email,
+	u.password_hash,
+	u.display_name,
+	COALESCE(u.avatar_url, ''),
+	COALESCE(u.avatar_object, ''),
+	u.email_verified,
+	u.status,
+	u.last_login_at,
+	COALESCE(up.is_online, FALSE),
+	up.last_seen_at,
+	u.created_at,
+	u.updated_at
 FROM users
-WHERE email = $1
-`, strings.ToLower(strings.TrimSpace(email))).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.DisplayName, &avatarURL, &avatarObject, &user.EmailVerified, &user.Status, &lastLoginAt, &user.CreatedAt, &user.UpdatedAt)
+u
+LEFT JOIN user_presence up ON up.user_id = u.id
+WHERE u.email = $1
+`, strings.ToLower(strings.TrimSpace(email))).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.DisplayName, &avatarURL, &avatarObject, &user.EmailVerified, &user.Status, &lastLoginAt, &user.IsOnline, &lastSeenAt, &user.CreatedAt, &user.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.New("invalid credentials")
@@ -336,6 +394,9 @@ WHERE email = $1
 	}
 	if lastLoginAt.Valid {
 		user.LastLoginAt = lastLoginAt.Time
+	}
+	if lastSeenAt.Valid {
+		user.LastSeenAt = &lastSeenAt.Time
 	}
 	return &user, nil
 }
@@ -373,6 +434,8 @@ ORDER BY r.id
 func (r *Repository) getPublicOpportunityByID(ctx context.Context, id string) (*PublicOpportunity, error) {
 	var item PublicOpportunity
 	var companyName sql.NullString
+	var companyAvatarURL sql.NullString
+	var legacyCompanyAvatarPath sql.NullString
 	var location sql.NullString
 	row := r.db.QueryRowContext(ctx, `
 SELECT
@@ -396,13 +459,25 @@ SELECT
 	o.created_at,
 	o.updated_at,
 	COALESCE(c.brand_name, c.legal_name),
+	COALESCE(cu.avatar_url, c.avatar_url, ''),
+	COALESCE(mf.storage_path, ''),
 	COALESCE(l.display_text, '')
 FROM opportunities o
 JOIN companies c ON c.id = o.company_id
+LEFT JOIN LATERAL (
+	SELECT u.avatar_url
+	FROM employer_profiles ep
+	JOIN users u ON u.id = ep.user_id
+	WHERE ep.company_id = c.id
+	  AND COALESCE(u.avatar_url, '') <> ''
+	ORDER BY ep.is_company_owner DESC, u.updated_at DESC, ep.created_at ASC
+	LIMIT 1
+) cu ON TRUE
+LEFT JOIN media_files mf ON mf.id = c.logo_media_id
 LEFT JOIN locations l ON l.id = o.location_id
 WHERE o.id = $1
 `, id)
-	err := scanOpportunityBaseWithExtras(row, &item.Opportunity, &companyName, &location)
+	err := scanOpportunityBaseWithExtras(row, &item.Opportunity, &companyName, &companyAvatarURL, &legacyCompanyAvatarPath, &location)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.New("opportunity not found")
@@ -438,6 +513,12 @@ ORDER BY t.name
 
 	if companyName.Valid {
 		item.CompanyName = companyName.String
+	}
+	if companyAvatarURL.Valid {
+		item.CompanyAvatarURL = companyAvatarURL.String
+	}
+	if item.CompanyAvatarURL == "" && legacyCompanyAvatarPath.Valid {
+		item.CompanyAvatarURL = r.legacyMediaURL(legacyCompanyAvatarPath.String)
 	}
 	if location.Valid {
 		item.Location = location.String
@@ -946,9 +1027,19 @@ WHERE id = $1
 
 func (r *Repository) ListFavoriteCompanies(userID string) ([]Company, error) {
 	rows, err := r.db.QueryContext(context.Background(), `
-SELECT c.id, c.legal_name, COALESCE(c.brand_name, ''), COALESCE(c.description, ''), COALESCE(c.industry, ''), COALESCE(c.website_url, ''), COALESCE(c.email_domain, ''), COALESCE(c.inn, ''), COALESCE(c.ogrn, ''), COALESCE(c.company_size, ''), COALESCE(c.founded_year, 0), COALESCE(c.hq_city_id, 0), c.status, c.created_at, c.updated_at
+SELECT c.id, c.legal_name, COALESCE(c.brand_name, ''), COALESCE(cu.avatar_url, c.avatar_url, ''), COALESCE(cu.avatar_object, c.avatar_object, ''), COALESCE(mf.storage_path, ''), COALESCE(c.description, ''), COALESCE(c.industry, ''), COALESCE(c.website_url, ''), COALESCE(c.email_domain, ''), COALESCE(c.inn, ''), COALESCE(c.ogrn, ''), COALESCE(c.company_size, ''), COALESCE(c.founded_year, 0), COALESCE(c.hq_city_id, 0), c.status, c.created_at, c.updated_at
 FROM favorite_companies fc
 JOIN companies c ON c.id = fc.company_id
+LEFT JOIN LATERAL (
+	SELECT u.avatar_url, u.avatar_object
+	FROM employer_profiles ep
+	JOIN users u ON u.id = ep.user_id
+	WHERE ep.company_id = c.id
+	  AND (COALESCE(u.avatar_url, '') <> '' OR COALESCE(u.avatar_object, '') <> '')
+	ORDER BY ep.is_company_owner DESC, u.updated_at DESC, ep.created_at ASC
+	LIMIT 1
+) cu ON TRUE
+LEFT JOIN media_files mf ON mf.id = c.logo_media_id
 WHERE fc.user_id = $1
 ORDER BY fc.created_at DESC
 `, userID)
@@ -960,8 +1051,12 @@ ORDER BY fc.created_at DESC
 	var result []Company
 	for rows.Next() {
 		var item Company
-		if err := rows.Scan(&item.ID, &item.LegalName, &item.BrandName, &item.Description, &item.Industry, &item.WebsiteURL, &item.EmailDomain, &item.INN, &item.OGRN, &item.CompanySize, &item.FoundedYear, &item.HQCityID, &item.Status, &item.CreatedAt, &item.UpdatedAt); err != nil {
+		var legacyAvatarPath string
+		if err := rows.Scan(&item.ID, &item.LegalName, &item.BrandName, &item.AvatarURL, &item.AvatarObject, &legacyAvatarPath, &item.Description, &item.Industry, &item.WebsiteURL, &item.EmailDomain, &item.INN, &item.OGRN, &item.CompanySize, &item.FoundedYear, &item.HQCityID, &item.Status, &item.CreatedAt, &item.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan favorite companies: %w", err)
+		}
+		if item.AvatarURL == "" {
+			item.AvatarURL = r.legacyMediaURL(legacyAvatarPath)
 		}
 		result = append(result, item)
 	}
@@ -1248,6 +1343,7 @@ func (r *Repository) GetChatConversation(userID, conversationID string) (*ChatCo
 	var participantAvatarURL sql.NullString
 	var lastMessage sql.NullString
 	var lastMessageAt sql.NullTime
+	var participantLastSeenAt sql.NullTime
 	err := r.db.QueryRowContext(context.Background(), `
 SELECT
 	c.id,
@@ -1257,12 +1353,16 @@ SELECT
 	CASE WHEN c.participant_a_user_id = $1 THEN c.participant_b_user_id ELSE c.participant_a_user_id END AS participant_user_id,
 	u.display_name,
 	COALESCE(u.avatar_url, ''),
+	COALESCE(up.is_online, FALSE),
+	up.last_seen_at,
 	COALESCE(last_message.body, ''),
 	last_message.created_at,
+	COALESCE(unread.unread_count, 0),
 	c.created_at,
 	c.updated_at
 FROM chat_conversations c
 JOIN users u ON u.id = CASE WHEN c.participant_a_user_id = $1 THEN c.participant_b_user_id ELSE c.participant_a_user_id END
+LEFT JOIN user_presence up ON up.user_id = u.id
 LEFT JOIN opportunities o ON o.id = c.opportunity_id
 LEFT JOIN companies comp ON comp.id = o.company_id
 LEFT JOIN LATERAL (
@@ -1272,9 +1372,16 @@ LEFT JOIN LATERAL (
 	ORDER BY created_at DESC
 	LIMIT 1
 ) AS last_message ON TRUE
+LEFT JOIN LATERAL (
+	SELECT COUNT(*) AS unread_count
+	FROM chat_messages m
+	WHERE m.conversation_id = c.id
+	  AND m.sender_user_id <> $1
+	  AND m.read_at IS NULL
+) AS unread ON TRUE
 WHERE c.id = $2
   AND ($1 = c.participant_a_user_id OR $1 = c.participant_b_user_id)
-`, userID, conversationID).Scan(&item.ID, &item.OpportunityID, &item.OpportunityTitle, &item.CompanyLegalName, &item.ParticipantUserID, &participantName, &participantAvatarURL, &lastMessage, &lastMessageAt, &item.CreatedAt, &item.UpdatedAt)
+`, userID, conversationID).Scan(&item.ID, &item.OpportunityID, &item.OpportunityTitle, &item.CompanyLegalName, &item.ParticipantUserID, &participantName, &participantAvatarURL, &item.ParticipantIsOnline, &participantLastSeenAt, &lastMessage, &lastMessageAt, &item.UnreadCount, &item.CreatedAt, &item.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.New("chat conversation not found")
@@ -1284,6 +1391,9 @@ WHERE c.id = $2
 	item.ParticipantName = participantName
 	if participantAvatarURL.Valid {
 		item.ParticipantAvatarURL = participantAvatarURL.String
+	}
+	if participantLastSeenAt.Valid {
+		item.ParticipantLastSeenAt = &participantLastSeenAt.Time
 	}
 	if lastMessage.Valid {
 		item.LastMessage = lastMessage.String
@@ -1304,12 +1414,16 @@ SELECT
 	CASE WHEN c.participant_a_user_id = $1 THEN c.participant_b_user_id ELSE c.participant_a_user_id END AS participant_user_id,
 	u.display_name,
 	COALESCE(u.avatar_url, ''),
+	COALESCE(up.is_online, FALSE),
+	up.last_seen_at,
 	COALESCE(last_message.body, ''),
 	last_message.created_at,
+	COALESCE(unread.unread_count, 0),
 	c.created_at,
 	c.updated_at
 FROM chat_conversations c
 JOIN users u ON u.id = CASE WHEN c.participant_a_user_id = $1 THEN c.participant_b_user_id ELSE c.participant_a_user_id END
+LEFT JOIN user_presence up ON up.user_id = u.id
 LEFT JOIN opportunities o ON o.id = c.opportunity_id
 LEFT JOIN companies comp ON comp.id = o.company_id
 LEFT JOIN LATERAL (
@@ -1319,6 +1433,13 @@ LEFT JOIN LATERAL (
 	ORDER BY created_at DESC
 	LIMIT 1
 ) AS last_message ON TRUE
+LEFT JOIN LATERAL (
+	SELECT COUNT(*) AS unread_count
+	FROM chat_messages m
+	WHERE m.conversation_id = c.id
+	  AND m.sender_user_id <> $1
+	  AND m.read_at IS NULL
+) AS unread ON TRUE
 WHERE c.participant_a_user_id = $1 OR c.participant_b_user_id = $1
 ORDER BY COALESCE(last_message.created_at, c.updated_at) DESC
 `, userID)
@@ -1332,14 +1453,18 @@ ORDER BY COALESCE(last_message.created_at, c.updated_at) DESC
 		var item ChatConversation
 		var participantName string
 		var participantAvatarURL sql.NullString
+		var participantLastSeenAt sql.NullTime
 		var lastMessage sql.NullString
 		var lastMessageAt sql.NullTime
-		if err := rows.Scan(&item.ID, &item.OpportunityID, &item.OpportunityTitle, &item.CompanyLegalName, &item.ParticipantUserID, &participantName, &participantAvatarURL, &lastMessage, &lastMessageAt, &item.CreatedAt, &item.UpdatedAt); err != nil {
+		if err := rows.Scan(&item.ID, &item.OpportunityID, &item.OpportunityTitle, &item.CompanyLegalName, &item.ParticipantUserID, &participantName, &participantAvatarURL, &item.ParticipantIsOnline, &participantLastSeenAt, &lastMessage, &lastMessageAt, &item.UnreadCount, &item.CreatedAt, &item.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan chat conversations: %w", err)
 		}
 		item.ParticipantName = participantName
 		if participantAvatarURL.Valid {
 			item.ParticipantAvatarURL = participantAvatarURL.String
+		}
+		if participantLastSeenAt.Valid {
+			item.ParticipantLastSeenAt = &participantLastSeenAt.Time
 		}
 		if lastMessage.Valid {
 			item.LastMessage = lastMessage.String
@@ -1356,10 +1481,24 @@ func (r *Repository) ListChatMessages(userID, conversationID string) ([]ChatMess
 	if _, err := r.GetChatConversation(userID, conversationID); err != nil {
 		return nil, err
 	}
+	if _, err := r.MarkChatMessagesRead(userID, conversationID); err != nil {
+		return nil, err
+	}
 	rows, err := r.db.QueryContext(context.Background(), `
-SELECT m.id, m.conversation_id, m.sender_user_id, u.display_name, COALESCE(u.avatar_url, ''), m.body, m.created_at
+SELECT
+	m.id,
+	m.conversation_id,
+	m.sender_user_id,
+	u.display_name,
+	COALESCE(u.avatar_url, ''),
+	COALESCE(up.is_online, FALSE),
+	m.body,
+	(m.read_at IS NOT NULL),
+	m.read_at,
+	m.created_at
 FROM chat_messages m
 JOIN users u ON u.id = m.sender_user_id
+LEFT JOIN user_presence up ON up.user_id = u.id
 WHERE m.conversation_id = $1
 ORDER BY m.created_at ASC
 `, conversationID)
@@ -1371,8 +1510,12 @@ ORDER BY m.created_at ASC
 	var result []ChatMessage
 	for rows.Next() {
 		var item ChatMessage
-		if err := rows.Scan(&item.ID, &item.ConversationID, &item.SenderUserID, &item.SenderName, &item.SenderAvatarURL, &item.Body, &item.CreatedAt); err != nil {
+		var readAt sql.NullTime
+		if err := rows.Scan(&item.ID, &item.ConversationID, &item.SenderUserID, &item.SenderName, &item.SenderAvatarURL, &item.SenderIsOnline, &item.Body, &item.IsRead, &readAt, &item.CreatedAt); err != nil {
 			return nil, fmt.Errorf("scan chat messages: %w", err)
+		}
+		if readAt.Valid {
+			item.ReadAt = &readAt.Time
 		}
 		result = append(result, item)
 	}
@@ -1413,7 +1556,29 @@ WHERE id = $1
 	}
 	item.SenderName = sender.DisplayName
 	item.SenderAvatarURL = sender.AvatarURL
+	item.SenderIsOnline = sender.IsOnline
 	return item, nil
+}
+
+func (r *Repository) MarkChatMessagesRead(userID, conversationID string) (int64, error) {
+	if _, err := r.GetChatConversation(userID, conversationID); err != nil {
+		return 0, err
+	}
+	result, err := r.db.ExecContext(context.Background(), `
+UPDATE chat_messages
+SET read_at = NOW()
+WHERE conversation_id = $1
+  AND sender_user_id <> $2
+  AND read_at IS NULL
+`, conversationID, userID)
+	if err != nil {
+		return 0, fmt.Errorf("mark chat messages read: %w", err)
+	}
+	updated, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("count marked chat messages: %w", err)
+	}
+	return updated, nil
 }
 
 func (r *Repository) ListOpportunities(filter repository.OpportunityFilter) ([]PublicOpportunity, error) {
@@ -1537,8 +1702,46 @@ WHERE id = $1
 
 func (r *Repository) ListCompanies() ([]Company, error) {
 	rows, err := r.db.QueryContext(context.Background(), `
-SELECT id, legal_name, COALESCE(brand_name, ''), COALESCE(description, ''), COALESCE(industry, ''), COALESCE(website_url, ''), COALESCE(email_domain, ''), COALESCE(inn, ''), COALESCE(ogrn, ''), COALESCE(company_size, ''), COALESCE(founded_year, 0), COALESCE(hq_city_id, 0), status, created_at, updated_at
-FROM companies
+SELECT
+	c.id,
+	c.legal_name,
+	COALESCE(c.brand_name, ''),
+	COALESCE(cu.avatar_url, c.avatar_url, ''),
+	COALESCE(cu.avatar_object, c.avatar_object, ''),
+	COALESCE(mf.storage_path, ''),
+	COALESCE(c.description, ''),
+	COALESCE(c.industry, ''),
+	COALESCE(c.website_url, ''),
+	COALESCE(c.email_domain, ''),
+	COALESCE(c.inn, ''),
+	COALESCE(c.ogrn, ''),
+	COALESCE(c.company_size, ''),
+	COALESCE(c.founded_year, 0),
+	COALESCE(c.hq_city_id, 0),
+	c.status,
+	COALESCE(cp.is_online, FALSE),
+	cp.last_seen_at,
+	c.created_at,
+	c.updated_at
+FROM companies c
+LEFT JOIN LATERAL (
+	SELECT u.avatar_url, u.avatar_object
+	FROM employer_profiles ep
+	JOIN users u ON u.id = ep.user_id
+	WHERE ep.company_id = c.id
+	  AND (COALESCE(u.avatar_url, '') <> '' OR COALESCE(u.avatar_object, '') <> '')
+	ORDER BY ep.is_company_owner DESC, u.updated_at DESC, ep.created_at ASC
+	LIMIT 1
+) cu ON TRUE
+LEFT JOIN media_files mf ON mf.id = c.logo_media_id
+LEFT JOIN LATERAL (
+	SELECT
+		BOOL_OR(up.is_online) AS is_online,
+		MAX(up.last_seen_at) AS last_seen_at
+	FROM employer_profiles ep
+	JOIN user_presence up ON up.user_id = ep.user_id
+	WHERE ep.company_id = c.id
+) cp ON TRUE
 ORDER BY created_at DESC
 `)
 	if err != nil {
@@ -1548,8 +1751,16 @@ ORDER BY created_at DESC
 	result := []Company{}
 	for rows.Next() {
 		var item Company
-		if err := rows.Scan(&item.ID, &item.LegalName, &item.BrandName, &item.Description, &item.Industry, &item.WebsiteURL, &item.EmailDomain, &item.INN, &item.OGRN, &item.CompanySize, &item.FoundedYear, &item.HQCityID, &item.Status, &item.CreatedAt, &item.UpdatedAt); err != nil {
+		var legacyAvatarPath string
+		var lastSeenAt sql.NullTime
+		if err := rows.Scan(&item.ID, &item.LegalName, &item.BrandName, &item.AvatarURL, &item.AvatarObject, &legacyAvatarPath, &item.Description, &item.Industry, &item.WebsiteURL, &item.EmailDomain, &item.INN, &item.OGRN, &item.CompanySize, &item.FoundedYear, &item.HQCityID, &item.Status, &item.IsOnline, &lastSeenAt, &item.CreatedAt, &item.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan companies: %w", err)
+		}
+		if item.AvatarURL == "" {
+			item.AvatarURL = r.legacyMediaURL(legacyAvatarPath)
+		}
+		if lastSeenAt.Valid {
+			item.LastSeenAt = &lastSeenAt.Time
 		}
 		result = append(result, item)
 	}
@@ -1558,16 +1769,62 @@ ORDER BY created_at DESC
 
 func (r *Repository) GetCompany(id string) (*Company, error) {
 	var item Company
+	var legacyAvatarPath string
+	var lastSeenAt sql.NullTime
 	err := r.db.QueryRowContext(context.Background(), `
-SELECT id, legal_name, COALESCE(brand_name, ''), COALESCE(description, ''), COALESCE(industry, ''), COALESCE(website_url, ''), COALESCE(email_domain, ''), COALESCE(inn, ''), COALESCE(ogrn, ''), COALESCE(company_size, ''), COALESCE(founded_year, 0), COALESCE(hq_city_id, 0), status, created_at, updated_at
-FROM companies
-WHERE id = $1
-`, id).Scan(&item.ID, &item.LegalName, &item.BrandName, &item.Description, &item.Industry, &item.WebsiteURL, &item.EmailDomain, &item.INN, &item.OGRN, &item.CompanySize, &item.FoundedYear, &item.HQCityID, &item.Status, &item.CreatedAt, &item.UpdatedAt)
+SELECT
+	c.id,
+	c.legal_name,
+	COALESCE(c.brand_name, ''),
+	COALESCE(cu.avatar_url, c.avatar_url, ''),
+	COALESCE(cu.avatar_object, c.avatar_object, ''),
+	COALESCE(mf.storage_path, ''),
+	COALESCE(c.description, ''),
+	COALESCE(c.industry, ''),
+	COALESCE(c.website_url, ''),
+	COALESCE(c.email_domain, ''),
+	COALESCE(c.inn, ''),
+	COALESCE(c.ogrn, ''),
+	COALESCE(c.company_size, ''),
+	COALESCE(c.founded_year, 0),
+	COALESCE(c.hq_city_id, 0),
+	c.status,
+	COALESCE(cp.is_online, FALSE),
+	cp.last_seen_at,
+	c.created_at,
+	c.updated_at
+FROM companies c
+LEFT JOIN LATERAL (
+	SELECT u.avatar_url, u.avatar_object
+	FROM employer_profiles ep
+	JOIN users u ON u.id = ep.user_id
+	WHERE ep.company_id = c.id
+	  AND (COALESCE(u.avatar_url, '') <> '' OR COALESCE(u.avatar_object, '') <> '')
+	ORDER BY ep.is_company_owner DESC, u.updated_at DESC, ep.created_at ASC
+	LIMIT 1
+) cu ON TRUE
+LEFT JOIN media_files mf ON mf.id = c.logo_media_id
+LEFT JOIN LATERAL (
+	SELECT
+		BOOL_OR(up.is_online) AS is_online,
+		MAX(up.last_seen_at) AS last_seen_at
+	FROM employer_profiles ep
+	JOIN user_presence up ON up.user_id = ep.user_id
+	WHERE ep.company_id = c.id
+) cp ON TRUE
+WHERE c.id = $1
+	`, id).Scan(&item.ID, &item.LegalName, &item.BrandName, &item.AvatarURL, &item.AvatarObject, &legacyAvatarPath, &item.Description, &item.Industry, &item.WebsiteURL, &item.EmailDomain, &item.INN, &item.OGRN, &item.CompanySize, &item.FoundedYear, &item.HQCityID, &item.Status, &item.IsOnline, &lastSeenAt, &item.CreatedAt, &item.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.New("company not found")
 		}
 		return nil, fmt.Errorf("get company: %w", err)
+	}
+	if item.AvatarURL == "" {
+		item.AvatarURL = r.legacyMediaURL(legacyAvatarPath)
+	}
+	if lastSeenAt.Valid {
+		item.LastSeenAt = &lastSeenAt.Time
 	}
 	return &item, nil
 }
@@ -1663,6 +1920,9 @@ WHERE ep.user_id = $1
 func (r *Repository) GetEmployerCompany(userID string) (*Company, error) {
 	var company Company
 	var brandName sql.NullString
+	var avatarURL sql.NullString
+	var avatarObject sql.NullString
+	var legacyAvatarPath sql.NullString
 	var description sql.NullString
 	var industry sql.NullString
 	var websiteURL sql.NullString
@@ -1671,11 +1931,21 @@ func (r *Repository) GetEmployerCompany(userID string) (*Company, error) {
 	var ogrn sql.NullString
 	var companySize sql.NullString
 	err := r.db.QueryRowContext(context.Background(), `
-SELECT c.id, c.legal_name, c.brand_name, c.description, c.industry, c.website_url, c.email_domain, c.inn, c.ogrn, c.company_size, COALESCE(c.founded_year, 0), COALESCE(c.hq_city_id, 0), c.status, c.created_at, c.updated_at
+SELECT c.id, c.legal_name, c.brand_name, COALESCE(cu.avatar_url, c.avatar_url), COALESCE(cu.avatar_object, c.avatar_object), COALESCE(mf.storage_path, ''), c.description, c.industry, c.website_url, c.email_domain, c.inn, c.ogrn, c.company_size, COALESCE(c.founded_year, 0), COALESCE(c.hq_city_id, 0), c.status, c.created_at, c.updated_at
 FROM employer_profiles ep
 JOIN companies c ON c.id = ep.company_id
+LEFT JOIN LATERAL (
+	SELECT u.avatar_url, u.avatar_object
+	FROM employer_profiles ep2
+	JOIN users u ON u.id = ep2.user_id
+	WHERE ep2.company_id = c.id
+	  AND (COALESCE(u.avatar_url, '') <> '' OR COALESCE(u.avatar_object, '') <> '')
+	ORDER BY (ep2.user_id = ep.user_id) DESC, ep2.is_company_owner DESC, u.updated_at DESC, ep2.created_at ASC
+	LIMIT 1
+) cu ON TRUE
+LEFT JOIN media_files mf ON mf.id = c.logo_media_id
 WHERE ep.user_id = $1
-`, userID).Scan(&company.ID, &company.LegalName, &brandName, &description, &industry, &websiteURL, &emailDomain, &inn, &ogrn, &companySize, &company.FoundedYear, &company.HQCityID, &company.Status, &company.CreatedAt, &company.UpdatedAt)
+`, userID).Scan(&company.ID, &company.LegalName, &brandName, &avatarURL, &avatarObject, &legacyAvatarPath, &description, &industry, &websiteURL, &emailDomain, &inn, &ogrn, &companySize, &company.FoundedYear, &company.HQCityID, &company.Status, &company.CreatedAt, &company.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.New("company not found")
@@ -1684,6 +1954,15 @@ WHERE ep.user_id = $1
 	}
 	if brandName.Valid {
 		company.BrandName = brandName.String
+	}
+	if avatarURL.Valid {
+		company.AvatarURL = avatarURL.String
+	}
+	if avatarObject.Valid {
+		company.AvatarObject = avatarObject.String
+	}
+	if company.AvatarURL == "" && legacyAvatarPath.Valid {
+		company.AvatarURL = r.legacyMediaURL(legacyAvatarPath.String)
 	}
 	if description.Valid {
 		company.Description = description.String
@@ -1738,6 +2017,24 @@ func (r *Repository) UpdateEmployerCompany(userID string, update repository.Comp
 	}
 	cp := *company
 	r.addAudit("update", "companies", company.ID, userID, "company updated")
+	return &cp, nil
+}
+
+func (r *Repository) UpdateCompanyAvatar(userID, avatarObject, avatarURL string) (*Company, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	company, err := r.GetEmployerCompany(userID)
+	if err != nil {
+		return nil, err
+	}
+	company.AvatarObject = avatarObject
+	company.AvatarURL = avatarURL
+	company.UpdatedAt = time.Now()
+	if _, err := r.db.ExecContext(context.Background(), `UPDATE companies SET avatar_object = NULLIF($2, ''), avatar_url = NULLIF($3, ''), updated_at = $4 WHERE id = $1`, company.ID, avatarObject, avatarURL, company.UpdatedAt); err != nil {
+		return nil, fmt.Errorf("update company avatar: %w", err)
+	}
+	r.addAudit("update", "companies", company.ID, userID, "company avatar updated")
+	cp := *company
 	return &cp, nil
 }
 
@@ -2076,6 +2373,72 @@ WHERE o.id = $1
 		bodyParts = append(bodyParts, fmt.Sprintf("Контакты работодателя: %s.", contactsInfo.String))
 	}
 	return title, strings.Join(bodyParts, " ")
+}
+
+func (r *Repository) TouchUserPresence(userID string, isOnline bool) error {
+	if _, err := r.db.ExecContext(context.Background(), `
+INSERT INTO user_presence (user_id, is_online, last_seen_at, updated_at)
+VALUES ($1, $2, NOW(), NOW())
+ON CONFLICT (user_id) DO UPDATE SET
+	is_online = EXCLUDED.is_online,
+	last_seen_at = EXCLUDED.last_seen_at,
+	updated_at = EXCLUDED.updated_at
+`, userID, isOnline); err != nil {
+		return fmt.Errorf("touch user presence: %w", err)
+	}
+	return nil
+}
+
+func (r *Repository) GetUserPresence(userID string) (*Presence, error) {
+	var item Presence
+	var lastSeenAt sql.NullTime
+	err := r.db.QueryRowContext(context.Background(), `
+SELECT u.id, COALESCE(up.is_online, FALSE), up.last_seen_at
+FROM users u
+LEFT JOIN user_presence up ON up.user_id = u.id
+WHERE u.id = $1
+`, userID).Scan(&item.UserID, &item.IsOnline, &lastSeenAt)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errors.New("user not found")
+		}
+		return nil, fmt.Errorf("get user presence: %w", err)
+	}
+	if lastSeenAt.Valid {
+		item.LastSeenAt = &lastSeenAt.Time
+	}
+	return &item, nil
+}
+
+func (r *Repository) GetCompanyPresence(companyID string) (*Presence, error) {
+	var item Presence
+	var lastSeenAt sql.NullTime
+	err := r.db.QueryRowContext(context.Background(), `
+SELECT
+	c.id,
+	COALESCE(cp.is_online, FALSE),
+	cp.last_seen_at
+FROM companies c
+LEFT JOIN LATERAL (
+	SELECT
+		BOOL_OR(up.is_online) AS is_online,
+		MAX(up.last_seen_at) AS last_seen_at
+	FROM employer_profiles ep
+	JOIN user_presence up ON up.user_id = ep.user_id
+	WHERE ep.company_id = c.id
+) cp ON TRUE
+WHERE c.id = $1
+`, companyID).Scan(&item.CompanyID, &item.IsOnline, &lastSeenAt)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errors.New("company not found")
+		}
+		return nil, fmt.Errorf("get company presence: %w", err)
+	}
+	if lastSeenAt.Valid {
+		item.LastSeenAt = &lastSeenAt.Time
+	}
+	return &item, nil
 }
 
 func (r *Repository) UpdateEmployerProfile(userID string, profile EmployerProfile, actorID string) (*EmployerProfile, error) {

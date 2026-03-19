@@ -1,19 +1,25 @@
 package employer
 
 import (
+	"context"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
 	"tramplin/internal/dto"
 	"tramplin/internal/models"
 	"tramplin/internal/repository"
+	"tramplin/internal/storage"
 )
 
-type Service struct{ repo repository.PlatformRepository }
+type Service struct {
+	repo    repository.PlatformRepository
+	storage storage.Storage
+}
 
-func New(repo repository.PlatformRepository) *Service {
-	return &Service{repo: repo}
+func New(repo repository.PlatformRepository, storage storage.Storage) *Service {
+	return &Service{repo: repo, storage: storage}
 }
 
 func (s *Service) GetCompany(userID string) (*models.Company, error) {
@@ -34,6 +40,17 @@ func (s *Service) UpdateCompany(userID string, input dto.CompanyInput) (*models.
 		FoundedYear: input.FoundedYear,
 		HQCityID:    input.HQCityID,
 	})
+}
+
+func (s *Service) UploadCompanyAvatar(ctx context.Context, userID, fileName, contentType string, size int64, body io.Reader) (*models.Company, error) {
+	result, err := s.storage.UploadAvatar(ctx, userID, fileName, contentType, size, body)
+	if err != nil {
+		return nil, fmt.Errorf("upload company avatar: %w", err)
+	}
+	if _, err := s.repo.UpdateUserAvatar(userID, result.ObjectKey, result.URL); err != nil {
+		return nil, err
+	}
+	return s.repo.GetEmployerCompany(userID)
 }
 
 func (s *Service) CreateCompanyLink(userID string, input dto.CompanyLinkInput) (*models.CompanyLink, error) {

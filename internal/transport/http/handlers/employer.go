@@ -57,6 +57,44 @@ func (h *EmployerHandler) UpdateCompanyProfile(c *fiber.Ctx) error {
 	return respond(c, fiber.StatusOK, data)
 }
 
+// UploadCompanyAvatar godoc
+// @Summary Загрузить аватар компании
+// @Tags employer
+// @Accept mpfd
+// @Produce json
+// @Security BearerAuth
+// @Param file formData file true "Файл аватара компании"
+// @Success 200 {object} SuccessResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Router /api/employer/company/avatar [put]
+func (h *EmployerHandler) UploadCompanyAvatar(c *fiber.Ctx) error {
+	userID, err := requiredUserID(c)
+	if err != nil {
+		return fail(c, fiber.StatusUnauthorized, err)
+	}
+
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		return fail(c, fiber.StatusBadRequest, fiber.NewError(fiber.StatusBadRequest, "file is required"))
+	}
+	if err := validateAvatarFile(fileHeader); err != nil {
+		return fail(c, fiber.StatusBadRequest, err)
+	}
+
+	file, err := fileHeader.Open()
+	if err != nil {
+		return fail(c, fiber.StatusBadRequest, err)
+	}
+	defer file.Close()
+
+	company, err := h.service.UploadCompanyAvatar(c.UserContext(), userID, fileHeader.Filename, fileHeader.Header.Get("Content-Type"), fileHeader.Size, file)
+	if err != nil {
+		return fail(c, fiber.StatusBadRequest, err)
+	}
+	return respond(c, fiber.StatusOK, company)
+}
+
 // CreateCompanyLink godoc
 // @Summary Добавить ссылку компании
 // @Tags employer

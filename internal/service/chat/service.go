@@ -33,3 +33,19 @@ func (s *Service) ListMessages(userID, conversationID string) ([]models.ChatMess
 func (s *Service) CreateMessage(userID, conversationID string, input dto.ChatMessageInput) (*models.ChatMessage, error) {
 	return s.repo.CreateChatMessage(userID, conversationID, strings.TrimSpace(input.Body))
 }
+
+func (s *Service) MarkMessagesRead(userID, conversationID string) (int64, error) {
+	return s.repo.MarkChatMessagesRead(userID, conversationID)
+}
+
+func (s *Service) TouchPresence(userID string, isOnline bool) error {
+	return s.repo.TouchUserPresence(userID, isOnline)
+}
+
+func (s *Service) GetUserPresence(userID string) (*models.Presence, error) {
+	return s.repo.GetUserPresence(userID)
+}
+
+func (s *Service) GetCompanyPresence(companyID string) (*models.Presence, error) {
+	return s.repo.GetCompanyPresence(companyID)
+}

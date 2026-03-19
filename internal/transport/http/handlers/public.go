@@ -124,6 +124,22 @@ func (h *PublicHandler) GetCompany(c *fiber.Ctx) error {
 	return respond(c, fiber.StatusOK, data)
 }
 
+func (h *PublicHandler) GetUserPresence(c *fiber.Ctx) error {
+	data, err := h.service.GetUserPresence(c.Params("id"))
+	if err != nil {
+		return fail(c, fiber.StatusNotFound, err)
+	}
+	return respond(c, fiber.StatusOK, data)
+}
+
+func (h *PublicHandler) GetCompanyPresence(c *fiber.Ctx) error {
+	data, err := h.service.GetCompanyPresence(c.Params("id"))
+	if err != nil {
+		return fail(c, fiber.StatusNotFound, err)
+	}
+	return respond(c, fiber.StatusOK, data)
+}
+
 // ListTags godoc
 // @Summary Список тегов
 // @Tags public

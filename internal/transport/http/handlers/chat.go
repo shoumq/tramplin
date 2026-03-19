@@ -20,12 +20,16 @@ type ChatHandler struct {
 }
 
 type chatHub struct {
-	mu    sync.Mutex
-	rooms map[string]map[*websocket.Conn]struct{}
+	mu         sync.Mutex
+	rooms      map[string]map[*websocket.Conn]struct{}
+	userCounts map[string]int
 }
 
 func newChatHub() *chatHub {
-	return &chatHub{rooms: make(map[string]map[*websocket.Conn]struct{})}
+	return &chatHub{
+		rooms:      make(map[string]map[*websocket.Conn]struct{}),
+		userCounts: make(map[string]int),
+	}
 }
 
 func NewChatHandler(service *chatservice.Service, jwtManager *authjwt.Manager) *ChatHandler {
@@ -65,6 +69,27 @@ func (h *chatHub) broadcast(conversationID string, payload any) {
 	if len(h.rooms[conversationID]) == 0 {
 		delete(h.rooms, conversationID)
 	}
+}
+
+func (h *chatHub) userJoin(userID string) bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.userCounts[userID]++
+	return h.userCounts[userID] == 1
+}
+
+func (h *chatHub) userLeave(userID string) bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.userCounts[userID] == 0 {
+		return false
+	}
+	h.userCounts[userID]--
+	if h.userCounts[userID] == 0 {
+		delete(h.userCounts, userID)
+		return true
+	}
+	return false
 }
 
 func (h *ChatHandler) CreateConversation(c *fiber.Ctx) error {
@@ -124,6 +149,18 @@ func (h *ChatHandler) CreateMessage(c *fiber.Ctx) error {
 	return respond(c, fiber.StatusCreated, data)
 }
 
+func (h *ChatHandler) MarkRead(c *fiber.Ctx) error {
+	userID, err := requiredUserID(c)
+	if err != nil {
+		return fail(c, fiber.StatusUnauthorized, err)
+	}
+	updated, err := h.service.MarkMessagesRead(userID, c.Params("id"))
+	if err != nil {
+		return fail(c, fiber.StatusBadRequest, err)
+	}
+	return respond(c, fiber.StatusOK, map[string]any{"updated": updated})
+}
+
 func (h *ChatHandler) WebSocket(c *fiber.Ctx) error {
 	token := strings.TrimSpace(c.Query("token"))
 	if token == "" {
@@ -152,6 +189,14 @@ func (h *ChatHandler) WebSocket(c *fiber.Ctx) error {
 		CheckOrigin: func(_ *fasthttp.RequestCtx) bool { return true },
 	}
 	return upgrader.Upgrade(c.Context(), func(conn *websocket.Conn) {
+		if h.hub.userJoin(claims.UserID) {
+			_ = h.service.TouchPresence(claims.UserID, true)
+		}
+		defer func() {
+			if h.hub.userLeave(claims.UserID) {
+				_ = h.service.TouchPresence(claims.UserID, false)
+			}
+		}()
 		h.hub.join(conversationID, conn)
 		defer h.hub.leave(conversationID, conn)
 		defer conn.Close()

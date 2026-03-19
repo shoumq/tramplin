@@ -6,6 +6,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
+	"tramplin/internal/dto"
 	accountservice "tramplin/internal/service/account"
 )
 
@@ -68,6 +69,21 @@ func (h *AccountHandler) UploadAvatar(c *fiber.Ctx) error {
 		return fail(c, fiber.StatusBadRequest, err)
 	}
 	return respond(c, fiber.StatusOK, user)
+}
+
+func (h *AccountHandler) TouchPresence(c *fiber.Ctx) error {
+	userID, err := requiredUserID(c)
+	if err != nil {
+		return fail(c, fiber.StatusUnauthorized, err)
+	}
+	var input dto.PresenceInput
+	if err := parseBody(c, &input); err != nil {
+		return fail(c, fiber.StatusBadRequest, err)
+	}
+	if err := h.service.TouchPresence(userID, input.IsOnline); err != nil {
+		return fail(c, fiber.StatusBadRequest, err)
+	}
+	return respond(c, fiber.StatusOK, map[string]any{"is_online": input.IsOnline})
 }
 
 func validateAvatarFile(file *multipart.FileHeader) error {

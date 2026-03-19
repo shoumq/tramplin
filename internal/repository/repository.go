@@ -72,6 +72,10 @@ type PlatformRepository interface {
 	ListChatConversations(userID string) ([]models.ChatConversation, error)
 	ListChatMessages(userID, conversationID string) ([]models.ChatMessage, error)
 	CreateChatMessage(userID, conversationID, body string) (*models.ChatMessage, error)
+	MarkChatMessagesRead(userID, conversationID string) (int64, error)
+	TouchUserPresence(userID string, isOnline bool) error
+	GetUserPresence(userID string) (*models.Presence, error)
+	GetCompanyPresence(companyID string) (*models.Presence, error)
 	ListOpportunities(filter OpportunityFilter) ([]models.PublicOpportunity, error)
 	ListOpportunityMarkers(filter OpportunityFilter) ([]models.OpportunityMarker, error)
 	GetOpportunity(id string) (*models.PublicOpportunity, error)
@@ -84,6 +88,7 @@ type PlatformRepository interface {
 	GetEmployerProfile(userID string) (*models.EmployerProfile, error)
 	GetEmployerCompany(userID string) (*models.Company, error)
 	UpdateEmployerCompany(userID string, update CompanyUpdate) (*models.Company, error)
+	UpdateCompanyAvatar(userID, avatarObject, avatarURL string) (*models.Company, error)
 	CreateCompanyLink(userID, linkType, url string) (*models.CompanyLink, error)
 	SubmitCompanyVerification(userID, method, corporateEmail, inn, comment string) (*models.CompanyVerification, error)
 	ListEmployerOpportunities(userID string) ([]models.Opportunity, error)

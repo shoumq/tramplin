@@ -55,6 +55,14 @@ func (s *Service) CreateApplication(userID, opportunityID string, input dto.Appl
 	})
 }
 
+func (s *Service) GetUserPresence(userID string) (*models.Presence, error) {
+	return s.repo.GetUserPresence(userID)
+}
+
+func (s *Service) GetCompanyPresence(companyID string) (*models.Presence, error) {
+	return s.repo.GetCompanyPresence(companyID)
+}
+
 func buildFilter(params map[string]string) repository.OpportunityFilter {
 	salary, _ := strconv.ParseFloat(params["salary_from"], 64)
 	return repository.OpportunityFilter{

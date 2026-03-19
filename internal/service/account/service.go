@@ -85,3 +85,7 @@ func (s *Service) GetMe(userID string) (*dto.MeResponse, error) {
 
 	return response, nil
 }
+
+func (s *Service) TouchPresence(userID string, isOnline bool) error {
+	return s.repo.TouchUserPresence(userID, isOnline)
+}

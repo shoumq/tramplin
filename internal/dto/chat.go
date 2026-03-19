@@ -8,3 +8,7 @@ type ChatConversationInput struct {
 type ChatMessageInput struct {
 	Body string `json:"body"`
 }
+
+type PresenceInput struct {
+	IsOnline bool `json:"is_online"`
+}
