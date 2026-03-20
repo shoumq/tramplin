@@ -70,6 +70,7 @@ func (r *Repository) GetChatConversation(userID, conversationID string) (*ChatCo
 SELECT
 	c.id,
 	COALESCE(c.opportunity_id::text, ''),
+	COALESCE(o.company_id::text, ''),
 	COALESCE(o.title, ''),
 	COALESCE(comp.legal_name, ''),
 	CASE WHEN c.participant_a_user_id = $1 THEN c.participant_b_user_id ELSE c.participant_a_user_id END AS participant_user_id,
@@ -103,7 +104,7 @@ LEFT JOIN LATERAL (
 ) AS unread ON TRUE
 WHERE c.id = $2
   AND ($1 = c.participant_a_user_id OR $1 = c.participant_b_user_id)
-`, userID, conversationID).Scan(&item.ID, &item.OpportunityID, &item.OpportunityTitle, &item.CompanyLegalName, &item.ParticipantUserID, &participantName, &participantAvatarURL, &item.ParticipantIsOnline, &participantLastSeenAt, &lastMessage, &lastMessageAt, &item.UnreadCount, &item.CreatedAt, &item.UpdatedAt)
+`, userID, conversationID).Scan(&item.ID, &item.OpportunityID, &item.CompanyID, &item.OpportunityTitle, &item.CompanyLegalName, &item.ParticipantUserID, &participantName, &participantAvatarURL, &item.ParticipantIsOnline, &participantLastSeenAt, &lastMessage, &lastMessageAt, &item.UnreadCount, &item.CreatedAt, &item.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.New("chat conversation not found")
@@ -131,6 +132,7 @@ func (r *Repository) ListChatConversations(userID string) ([]ChatConversation, e
 SELECT
 	c.id,
 	COALESCE(c.opportunity_id::text, ''),
+	COALESCE(o.company_id::text, ''),
 	COALESCE(o.title, ''),
 	COALESCE(comp.legal_name, ''),
 	CASE WHEN c.participant_a_user_id = $1 THEN c.participant_b_user_id ELSE c.participant_a_user_id END AS participant_user_id,
@@ -178,7 +180,7 @@ ORDER BY COALESCE(last_message.created_at, c.updated_at) DESC
 		var participantLastSeenAt sql.NullTime
 		var lastMessage sql.NullString
 		var lastMessageAt sql.NullTime
-		if err := rows.Scan(&item.ID, &item.OpportunityID, &item.OpportunityTitle, &item.CompanyLegalName, &item.ParticipantUserID, &participantName, &participantAvatarURL, &item.ParticipantIsOnline, &participantLastSeenAt, &lastMessage, &lastMessageAt, &item.UnreadCount, &item.CreatedAt, &item.UpdatedAt); err != nil {
+		if err := rows.Scan(&item.ID, &item.OpportunityID, &item.CompanyID, &item.OpportunityTitle, &item.CompanyLegalName, &item.ParticipantUserID, &participantName, &participantAvatarURL, &item.ParticipantIsOnline, &participantLastSeenAt, &lastMessage, &lastMessageAt, &item.UnreadCount, &item.CreatedAt, &item.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan chat conversations: %w", err)
 		}
 		item.ParticipantName = participantName

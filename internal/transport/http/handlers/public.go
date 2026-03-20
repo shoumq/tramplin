@@ -124,6 +124,27 @@ func (h *PublicHandler) GetCompany(c *fiber.Ctx) error {
 	return respond(c, fiber.StatusOK, data)
 }
 
+// GetStudentProfile godoc
+// @Summary Получить публичный профиль студента по ID
+// @Tags public
+// @Produce json
+// @Param id path string true "ID пользователя студента"
+// @Success 200 {object} SuccessResponse
+// @Failure 403 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Router /api/students/{id} [get]
+func (h *PublicHandler) GetStudentProfile(c *fiber.Ctx) error {
+	data, err := h.service.GetStudentProfile(c.Params("id"))
+	if err != nil {
+		status := fiber.StatusNotFound
+		if err.Error() == "student profile is available only to authorized users" || err.Error() == "student profile is available only to contacts" {
+			status = fiber.StatusForbidden
+		}
+		return fail(c, status, err)
+	}
+	return respond(c, fiber.StatusOK, data)
+}
+
 func (h *PublicHandler) GetUserPresence(c *fiber.Ctx) error {
 	data, err := h.service.GetUserPresence(c.Params("id"))
 	if err != nil {

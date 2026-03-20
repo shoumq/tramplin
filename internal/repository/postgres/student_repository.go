@@ -65,6 +65,115 @@ WHERE sp.user_id = $1
 	return &profile, nil
 }
 
+func (r *Repository) GetPublicStudentProfile(userID string) (*PublicStudentProfile, error) {
+	var profile PublicStudentProfile
+	var middleName sql.NullString
+	var faculty sql.NullString
+	var specialization sql.NullString
+	var about sql.NullString
+	var telegram sql.NullString
+	var githubURL sql.NullString
+	var linkedinURL sql.NullString
+	var websiteURL sql.NullString
+	var avatarURL sql.NullString
+	err := r.db.QueryRowContext(context.Background(), `
+SELECT
+	sp.user_id,
+	u.display_name,
+	COALESCE(u.avatar_url, ''),
+	sp.last_name,
+	sp.first_name,
+	sp.middle_name,
+	sp.university_name,
+	sp.faculty,
+	sp.specialization,
+	COALESCE(sp.study_year, 0),
+	COALESCE(sp.graduation_year, 0),
+	sp.about,
+	sp.profile_visibility,
+	sp.show_resume,
+	sp.show_applications,
+	sp.show_career_interests,
+	sp.telegram,
+	sp.github_url,
+	sp.linkedin_url,
+	sp.website_url,
+	sp.created_at,
+	sp.updated_at
+FROM student_profiles sp
+JOIN users u ON u.id = sp.user_id
+WHERE sp.user_id = $1
+`, userID).Scan(
+		&profile.UserID,
+		&profile.DisplayName,
+		&avatarURL,
+		&profile.LastName,
+		&profile.FirstName,
+		&middleName,
+		&profile.UniversityName,
+		&faculty,
+		&specialization,
+		&profile.StudyYear,
+		&profile.GraduationYear,
+		&about,
+		&profile.ProfileVisibility,
+		&profile.ShowResume,
+		&profile.ShowApplications,
+		&profile.ShowCareerInterests,
+		&telegram,
+		&githubURL,
+		&linkedinURL,
+		&websiteURL,
+		&profile.CreatedAt,
+		&profile.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errors.New("student profile not found")
+		}
+		return nil, fmt.Errorf("get public student profile %s: %w", userID, err)
+	}
+	switch profile.ProfileVisibility {
+	case "public_inside_platform":
+	case "authorized_only":
+		return nil, errors.New("student profile is available only to authorized users")
+	case "contacts_only":
+		return nil, errors.New("student profile is available only to contacts")
+	case "private":
+		return nil, errors.New("student profile not found")
+	default:
+		return nil, errors.New("student profile not found")
+	}
+	if avatarURL.Valid {
+		profile.AvatarURL = avatarURL.String
+	}
+	if middleName.Valid {
+		profile.MiddleName = middleName.String
+	}
+	if faculty.Valid {
+		profile.Faculty = faculty.String
+	}
+	if specialization.Valid {
+		profile.Specialization = specialization.String
+	}
+	if about.Valid {
+		profile.About = about.String
+	}
+	if telegram.Valid {
+		profile.Telegram = telegram.String
+	}
+	if githubURL.Valid {
+		profile.GithubURL = githubURL.String
+	}
+	if linkedinURL.Valid {
+		profile.LinkedinURL = linkedinURL.String
+	}
+	if websiteURL.Valid {
+		profile.WebsiteURL = websiteURL.String
+	}
+	return &profile, nil
+}
+
 func (r *Repository) UpsertStudentProfile(profile StudentProfile, actorID string) (*StudentProfile, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

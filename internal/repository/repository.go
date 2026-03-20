@@ -48,6 +48,7 @@ type PlatformRepository interface {
 	UpdateUserStatus(userID, status, actorID string) (*models.User, error)
 	UpdateUserAvatar(userID, avatarObject, avatarURL string) (*models.User, error)
 	GetStudentProfile(userID string) (*models.StudentProfile, error)
+	GetPublicStudentProfile(userID string) (*models.PublicStudentProfile, error)
 	UpsertStudentProfile(profile models.StudentProfile, actorID string) (*models.StudentProfile, error)
 	ListResumes(studentUserID string) ([]models.Resume, error)
 	CreateResume(resume models.Resume) (*models.Resume, error)

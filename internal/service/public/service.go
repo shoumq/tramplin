@@ -34,6 +34,10 @@ func (s *Service) GetCompany(id string) (*models.Company, error) {
 	return s.repo.GetCompany(id)
 }
 
+func (s *Service) GetStudentProfile(id string) (*models.PublicStudentProfile, error) {
+	return s.repo.GetPublicStudentProfile(id)
+}
+
 func (s *Service) ListTags() ([]models.Tag, error) {
 	return s.repo.ListTags()
 }

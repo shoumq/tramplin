@@ -29,6 +29,7 @@ func RegisterRoutes(app *fiber.App, h *handlers.Container, jwtManager *authjwt.M
 	api.Get("/opportunities/:id", h.Public.GetOpportunity)
 	api.Get("/companies", h.Public.ListCompanies)
 	api.Get("/companies/:id", h.Public.GetCompany)
+	api.Get("/students/:id", h.Public.GetStudentProfile)
 	api.Get("/companies/:id/presence", h.Public.GetCompanyPresence)
 	api.Get("/users/:id/presence", h.Public.GetUserPresence)
 	api.Get("/tags", h.Public.ListTags)

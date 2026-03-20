@@ -241,12 +241,6 @@ definitions:
       inn_submitted:
         type: string
       verification_method:
-        enum:
-        - corporate_email
-        - inn_check
-        - manual_documents
-        - social_links_review
-        - combined
         type: string
     type: object
   handlers.ErrorResponse:
@@ -860,6 +854,36 @@ paths:
       security:
       - BearerAuth: []
       summary: Отправить компанию на верификацию
+      tags:
+      - employer
+  /api/employer/company/avatar:
+    put:
+      consumes:
+      - multipart/form-data
+      parameters:
+      - description: Файл аватара компании
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Загрузить аватар компании
       tags:
       - employer
   /api/employer/opportunities:
@@ -1740,6 +1764,32 @@ paths:
           schema:
             $ref: '#/definitions/handlers.ErrorResponse'
       summary: Маркеры возможностей для карты
+      tags:
+      - public
+  /api/students/{id}:
+    get:
+      parameters:
+      - description: ID пользователя студента
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Получить публичный профиль студента по ID
       tags:
       - public
   /api/tags:

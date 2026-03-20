@@ -952,6 +952,54 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/employer/company/avatar": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "employer"
+                ],
+                "summary": "Загрузить аватар компании",
+                "parameters": [
+                    {
+                        "type": "file",
+                        "description": "Файл аватара компании",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/employer/opportunities": {
             "get": {
                 "security": [
@@ -2361,6 +2409,46 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/students/{id}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "public"
+                ],
+                "summary": "Получить публичный профиль студента по ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID пользователя студента",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.SuccessResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/tags": {
             "get": {
                 "produces": [
@@ -2750,13 +2838,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "verification_method": {
-                    "enum": [
-                        "corporate_email",
-                        "inn_check",
-                        "manual_documents",
-                        "social_links_review",
-                        "combined"
-                    ],
                     "type": "string"
                 }
             }
