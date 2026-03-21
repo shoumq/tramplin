@@ -64,6 +64,11 @@ type PublicStudentProfile struct {
 	GithubURL           string    `json:"github_url,omitempty"`
 	LinkedinURL         string    `json:"linkedin_url,omitempty"`
 	WebsiteURL          string    `json:"website_url,omitempty"`
+	ResumeCount         int       `json:"resume_count,omitempty"`
+	PortfolioCount      int       `json:"portfolio_count,omitempty"`
+	HasResume           bool      `json:"has_resume"`
+	HasPortfolio        bool      `json:"has_portfolio"`
+	ContactRelation     string    `json:"contact_relation,omitempty"`
 	CreatedAt           time.Time `json:"created_at"`
 	UpdatedAt           time.Time `json:"updated_at"`
 }
@@ -242,8 +247,11 @@ type ContactRequest struct {
 	ID                string    `json:"id"`
 	SenderUserID      string    `json:"sender_user_id"`
 	ReceiverUserID    string    `json:"receiver_user_id"`
+	SenderName        string    `json:"sender_name,omitempty"`
+	ReceiverName      string    `json:"receiver_name,omitempty"`
 	SenderAvatarURL   string    `json:"sender_avatar_url,omitempty"`
 	ReceiverAvatarURL string    `json:"receiver_avatar_url,omitempty"`
+	Direction         string    `json:"direction,omitempty"`
 	Message           string    `json:"message,omitempty"`
 	Status            string    `json:"status"`
 	CreatedAt         time.Time `json:"created_at"`
@@ -304,6 +312,7 @@ type ChatConversation struct {
 	OpportunityTitle      string     `json:"opportunity_title,omitempty"`
 	CompanyLegalName      string     `json:"company_legal_name,omitempty"`
 	ParticipantUserID     string     `json:"participant_user_id"`
+	ParticipantRole       string     `json:"participant_role,omitempty"`
 	ParticipantName       string     `json:"participant_name"`
 	ParticipantAvatarURL  string     `json:"participant_avatar_url,omitempty"`
 	ParticipantIsOnline   bool       `json:"participant_is_online"`

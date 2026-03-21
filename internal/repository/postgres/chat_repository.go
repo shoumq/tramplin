@@ -62,6 +62,7 @@ VALUES ($1, $2, $3, NULLIF($4, '')::uuid, $5, $6)
 func (r *Repository) GetChatConversation(userID, conversationID string) (*ChatConversation, error) {
 	var item ChatConversation
 	var participantName string
+	var participantRole sql.NullString
 	var participantAvatarURL sql.NullString
 	var lastMessage sql.NullString
 	var lastMessageAt sql.NullTime
@@ -74,6 +75,17 @@ SELECT
 	COALESCE(o.title, ''),
 	COALESCE(comp.legal_name, ''),
 	CASE WHEN c.participant_a_user_id = $1 THEN c.participant_b_user_id ELSE c.participant_a_user_id END AS participant_user_id,
+	(
+		SELECT CASE
+			WHEN BOOL_OR(r.code = 'student') THEN 'student'
+			WHEN BOOL_OR(r.code = 'employer') THEN 'employer'
+			WHEN BOOL_OR(r.code = 'curator') THEN 'curator'
+			ELSE NULL
+		END
+		FROM user_roles ur
+		JOIN roles r ON r.id = ur.role_id
+		WHERE ur.user_id = u.id
+	) AS participant_role,
 	u.display_name,
 	COALESCE(u.avatar_url, ''),
 	COALESCE(up.is_online, FALSE),
@@ -104,7 +116,7 @@ LEFT JOIN LATERAL (
 ) AS unread ON TRUE
 WHERE c.id = $2
   AND ($1 = c.participant_a_user_id OR $1 = c.participant_b_user_id)
-`, userID, conversationID).Scan(&item.ID, &item.OpportunityID, &item.CompanyID, &item.OpportunityTitle, &item.CompanyLegalName, &item.ParticipantUserID, &participantName, &participantAvatarURL, &item.ParticipantIsOnline, &participantLastSeenAt, &lastMessage, &lastMessageAt, &item.UnreadCount, &item.CreatedAt, &item.UpdatedAt)
+`, userID, conversationID).Scan(&item.ID, &item.OpportunityID, &item.CompanyID, &item.OpportunityTitle, &item.CompanyLegalName, &item.ParticipantUserID, &participantRole, &participantName, &participantAvatarURL, &item.ParticipantIsOnline, &participantLastSeenAt, &lastMessage, &lastMessageAt, &item.UnreadCount, &item.CreatedAt, &item.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.New("chat conversation not found")
@@ -112,6 +124,9 @@ WHERE c.id = $2
 		return nil, fmt.Errorf("get chat conversation: %w", err)
 	}
 	item.ParticipantName = participantName
+	if participantRole.Valid {
+		item.ParticipantRole = participantRole.String
+	}
 	if participantAvatarURL.Valid {
 		item.ParticipantAvatarURL = participantAvatarURL.String
 	}
@@ -136,6 +151,17 @@ SELECT
 	COALESCE(o.title, ''),
 	COALESCE(comp.legal_name, ''),
 	CASE WHEN c.participant_a_user_id = $1 THEN c.participant_b_user_id ELSE c.participant_a_user_id END AS participant_user_id,
+	(
+		SELECT CASE
+			WHEN BOOL_OR(r.code = 'student') THEN 'student'
+			WHEN BOOL_OR(r.code = 'employer') THEN 'employer'
+			WHEN BOOL_OR(r.code = 'curator') THEN 'curator'
+			ELSE NULL
+		END
+		FROM user_roles ur
+		JOIN roles r ON r.id = ur.role_id
+		WHERE ur.user_id = u.id
+	) AS participant_role,
 	u.display_name,
 	COALESCE(u.avatar_url, ''),
 	COALESCE(up.is_online, FALSE),
@@ -176,14 +202,18 @@ ORDER BY COALESCE(last_message.created_at, c.updated_at) DESC
 	for rows.Next() {
 		var item ChatConversation
 		var participantName string
+		var participantRole sql.NullString
 		var participantAvatarURL sql.NullString
 		var participantLastSeenAt sql.NullTime
 		var lastMessage sql.NullString
 		var lastMessageAt sql.NullTime
-		if err := rows.Scan(&item.ID, &item.OpportunityID, &item.CompanyID, &item.OpportunityTitle, &item.CompanyLegalName, &item.ParticipantUserID, &participantName, &participantAvatarURL, &item.ParticipantIsOnline, &participantLastSeenAt, &lastMessage, &lastMessageAt, &item.UnreadCount, &item.CreatedAt, &item.UpdatedAt); err != nil {
+		if err := rows.Scan(&item.ID, &item.OpportunityID, &item.CompanyID, &item.OpportunityTitle, &item.CompanyLegalName, &item.ParticipantUserID, &participantRole, &participantName, &participantAvatarURL, &item.ParticipantIsOnline, &participantLastSeenAt, &lastMessage, &lastMessageAt, &item.UnreadCount, &item.CreatedAt, &item.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan chat conversations: %w", err)
 		}
 		item.ParticipantName = participantName
+		if participantRole.Valid {
+			item.ParticipantRole = participantRole.String
+		}
 		if participantAvatarURL.Valid {
 			item.ParticipantAvatarURL = participantAvatarURL.String
 		}

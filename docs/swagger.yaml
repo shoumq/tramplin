@@ -7,6 +7,13 @@ definitions:
       resume_id:
         type: string
     type: object
+  dto.ChatConversationInput:
+    properties:
+      opportunity_id:
+        type: string
+      participant_user_id:
+        type: string
+    type: object
   dto.CompanyInput:
     properties:
       brand_name:
@@ -243,6 +250,24 @@ definitions:
       verification_method:
         type: string
     type: object
+  handlers.ChatConversationListResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/models.ChatConversation'
+        type: array
+      status:
+        example: ok
+        type: string
+    type: object
+  handlers.ChatConversationResponse:
+    properties:
+      data:
+        $ref: '#/definitions/models.ChatConversation'
+      status:
+        example: ok
+        type: string
+    type: object
   handlers.ErrorResponse:
     properties:
       error:
@@ -257,6 +282,41 @@ definitions:
       data: {}
       status:
         example: ok
+        type: string
+    type: object
+  models.ChatConversation:
+    properties:
+      company_id:
+        type: string
+      company_legal_name:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: string
+      last_message:
+        type: string
+      last_message_at:
+        type: string
+      opportunity_id:
+        type: string
+      opportunity_title:
+        type: string
+      participant_avatar_url:
+        type: string
+      participant_is_online:
+        type: boolean
+      participant_last_seen_at:
+        type: string
+      participant_name:
+        type: string
+      participant_role:
+        type: string
+      participant_user_id:
+        type: string
+      unread_count:
+        type: integer
+      updated_at:
         type: string
     type: object
 info:
@@ -1133,6 +1193,58 @@ paths:
       summary: Загрузить аватар пользователя
       tags:
       - account
+  /api/me/chats:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.ChatConversationListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Список чатов текущего пользователя
+      tags:
+      - chat
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Данные для создания чата
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ChatConversationInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handlers.ChatConversationResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Создать или получить чат
+      tags:
+      - chat
   /api/me/contact-requests:
     get:
       produces:
@@ -1764,6 +1876,43 @@ paths:
           schema:
             $ref: '#/definitions/handlers.ErrorResponse'
       summary: Маркеры возможностей для карты
+      tags:
+      - public
+  /api/students:
+    get:
+      parameters:
+      - description: Поиск по имени, университету, факультету, специализации
+        in: query
+        name: search
+        type: string
+      - description: Фильтр по университету
+        in: query
+        name: university_name
+        type: string
+      - description: Фильтр по факультету
+        in: query
+        name: faculty
+        type: string
+      - description: Фильтр по специализации
+        in: query
+        name: specialization
+        type: string
+      - description: Фильтр по курсу
+        in: query
+        name: study_year
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Список публичных профилей студентов
       tags:
       - public
   /api/students/{id}:

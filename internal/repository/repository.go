@@ -39,6 +39,15 @@ type OpportunityFilter struct {
 	SalaryFrom float64
 }
 
+type StudentFilter struct {
+	ViewerUserID   string
+	Search         string
+	UniversityName string
+	Faculty        string
+	Specialization string
+	StudyYear      int
+}
+
 type PlatformRepository interface {
 	RegisterUser(params RegisterUserParams) (*models.User, string, error)
 	Login(email, password string) (*models.User, []string, error)
@@ -48,7 +57,8 @@ type PlatformRepository interface {
 	UpdateUserStatus(userID, status, actorID string) (*models.User, error)
 	UpdateUserAvatar(userID, avatarObject, avatarURL string) (*models.User, error)
 	GetStudentProfile(userID string) (*models.StudentProfile, error)
-	GetPublicStudentProfile(userID string) (*models.PublicStudentProfile, error)
+	GetPublicStudentProfile(userID, viewerUserID string) (*models.PublicStudentProfile, error)
+	ListPublicStudentProfiles(filter StudentFilter) ([]models.PublicStudentProfile, error)
 	UpsertStudentProfile(profile models.StudentProfile, actorID string) (*models.StudentProfile, error)
 	ListResumes(studentUserID string) ([]models.Resume, error)
 	CreateResume(resume models.Resume) (*models.Resume, error)

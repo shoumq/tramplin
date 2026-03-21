@@ -5,11 +5,13 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 
 	. "tramplin/internal/models"
+	"tramplin/internal/repository"
 )
 
 func (r *Repository) GetStudentProfile(userID string) (*StudentProfile, error) {
@@ -65,7 +67,7 @@ WHERE sp.user_id = $1
 	return &profile, nil
 }
 
-func (r *Repository) GetPublicStudentProfile(userID string) (*PublicStudentProfile, error) {
+func (r *Repository) GetPublicStudentProfile(userID, viewerUserID string) (*PublicStudentProfile, error) {
 	var profile PublicStudentProfile
 	var middleName sql.NullString
 	var faculty sql.NullString
@@ -76,6 +78,10 @@ func (r *Repository) GetPublicStudentProfile(userID string) (*PublicStudentProfi
 	var linkedinURL sql.NullString
 	var websiteURL sql.NullString
 	var avatarURL sql.NullString
+	var contactRelation string
+	var isContact bool
+	var incomingPending bool
+	var outgoingPending bool
 	err := r.db.QueryRowContext(context.Background(), `
 SELECT
 	sp.user_id,
@@ -98,12 +104,17 @@ SELECT
 	sp.github_url,
 	sp.linkedin_url,
 	sp.website_url,
+	(SELECT COUNT(1) FROM resumes r WHERE r.student_user_id = sp.user_id),
+	(SELECT COUNT(1) FROM portfolio_projects p WHERE p.student_user_id = sp.user_id),
+		EXISTS (SELECT 1 FROM contacts c WHERE c.user_id = NULLIF($2, '')::uuid AND c.contact_user_id = sp.user_id),
+		EXISTS (SELECT 1 FROM contact_requests cr WHERE cr.sender_user_id = sp.user_id AND cr.receiver_user_id = NULLIF($2, '')::uuid AND cr.status = 'pending'),
+		EXISTS (SELECT 1 FROM contact_requests cr WHERE cr.sender_user_id = NULLIF($2, '')::uuid AND cr.receiver_user_id = sp.user_id AND cr.status = 'pending'),
 	sp.created_at,
 	sp.updated_at
 FROM student_profiles sp
 JOIN users u ON u.id = sp.user_id
 WHERE sp.user_id = $1
-`, userID).Scan(
+`, userID, viewerUserID).Scan(
 		&profile.UserID,
 		&profile.DisplayName,
 		&avatarURL,
@@ -124,6 +135,11 @@ WHERE sp.user_id = $1
 		&githubURL,
 		&linkedinURL,
 		&websiteURL,
+		&profile.ResumeCount,
+		&profile.PortfolioCount,
+		&isContact,
+		&incomingPending,
+		&outgoingPending,
 		&profile.CreatedAt,
 		&profile.UpdatedAt,
 	)
@@ -136,9 +152,13 @@ WHERE sp.user_id = $1
 	switch profile.ProfileVisibility {
 	case "public_inside_platform":
 	case "authorized_only":
-		return nil, errors.New("student profile is available only to authorized users")
+		if strings.TrimSpace(viewerUserID) == "" {
+			return nil, errors.New("student profile is available only to authorized users")
+		}
 	case "contacts_only":
-		return nil, errors.New("student profile is available only to contacts")
+		if strings.TrimSpace(viewerUserID) == "" || (!isContact && strings.TrimSpace(viewerUserID) != profile.UserID) {
+			return nil, errors.New("student profile is available only to contacts")
+		}
 	case "private":
 		return nil, errors.New("student profile not found")
 	default:
@@ -171,7 +191,167 @@ WHERE sp.user_id = $1
 	if websiteURL.Valid {
 		profile.WebsiteURL = websiteURL.String
 	}
+	profile.HasResume = profile.ResumeCount > 0
+	profile.HasPortfolio = profile.PortfolioCount > 0
+	contactRelation = "none"
+	if strings.TrimSpace(viewerUserID) != "" {
+		switch {
+		case strings.TrimSpace(viewerUserID) == profile.UserID:
+			contactRelation = "none"
+		case isContact:
+			contactRelation = "contact"
+		case incomingPending:
+			contactRelation = "incoming_pending"
+		case outgoingPending:
+			contactRelation = "outgoing_pending"
+		}
+	}
+	profile.ContactRelation = contactRelation
 	return &profile, nil
+}
+
+func (r *Repository) ListPublicStudentProfiles(filter repository.StudentFilter) ([]PublicStudentProfile, error) {
+	rows, err := r.db.QueryContext(context.Background(), `
+SELECT
+	sp.user_id,
+	u.display_name,
+	COALESCE(u.avatar_url, ''),
+	sp.last_name,
+	sp.first_name,
+	COALESCE(sp.middle_name, ''),
+	sp.university_name,
+	COALESCE(sp.faculty, ''),
+	COALESCE(sp.specialization, ''),
+	COALESCE(sp.study_year, 0),
+	COALESCE(sp.graduation_year, 0),
+	COALESCE(sp.about, ''),
+	sp.profile_visibility,
+	sp.show_resume,
+	sp.show_applications,
+	sp.show_career_interests,
+	COALESCE(sp.telegram, ''),
+	COALESCE(sp.github_url, ''),
+	COALESCE(sp.linkedin_url, ''),
+	COALESCE(sp.website_url, ''),
+	(SELECT COUNT(1) FROM resumes r WHERE r.student_user_id = sp.user_id),
+	(SELECT COUNT(1) FROM portfolio_projects p WHERE p.student_user_id = sp.user_id),
+		EXISTS (SELECT 1 FROM contacts c WHERE c.user_id = NULLIF($1, '')::uuid AND c.contact_user_id = sp.user_id),
+		EXISTS (SELECT 1 FROM contact_requests cr WHERE cr.sender_user_id = sp.user_id AND cr.receiver_user_id = NULLIF($1, '')::uuid AND cr.status = 'pending'),
+		EXISTS (SELECT 1 FROM contact_requests cr WHERE cr.sender_user_id = NULLIF($1, '')::uuid AND cr.receiver_user_id = sp.user_id AND cr.status = 'pending'),
+	sp.created_at,
+	sp.updated_at
+FROM student_profiles sp
+JOIN users u ON u.id = sp.user_id
+WHERE
+	(
+		sp.profile_visibility = 'public_inside_platform'
+		OR (sp.profile_visibility = 'authorized_only' AND NULLIF($1, '') IS NOT NULL)
+		OR (
+			sp.profile_visibility = 'contacts_only'
+			AND (
+					sp.user_id = NULLIF($1, '')::uuid
+					OR EXISTS (
+						SELECT 1
+						FROM contacts c
+						WHERE c.user_id = NULLIF($1, '')::uuid AND c.contact_user_id = sp.user_id
+					)
+			)
+		)
+	)
+	AND (
+		NULLIF($2, '') IS NULL
+		OR LOWER(u.display_name) LIKE '%' || LOWER($2) || '%'
+		OR LOWER(sp.first_name) LIKE '%' || LOWER($2) || '%'
+		OR LOWER(sp.last_name) LIKE '%' || LOWER($2) || '%'
+		OR LOWER(COALESCE(sp.middle_name, '')) LIKE '%' || LOWER($2) || '%'
+		OR LOWER(sp.university_name) LIKE '%' || LOWER($2) || '%'
+		OR LOWER(COALESCE(sp.faculty, '')) LIKE '%' || LOWER($2) || '%'
+		OR LOWER(COALESCE(sp.specialization, '')) LIKE '%' || LOWER($2) || '%'
+	)
+	AND (NULLIF($3, '') IS NULL OR LOWER(sp.university_name) = LOWER($3))
+	AND (NULLIF($4, '') IS NULL OR LOWER(COALESCE(sp.faculty, '')) = LOWER($4))
+	AND (NULLIF($5, '') IS NULL OR LOWER(COALESCE(sp.specialization, '')) = LOWER($5))
+	AND (NULLIF($6, 0) IS NULL OR COALESCE(sp.study_year, 0) = $6)
+ORDER BY sp.updated_at DESC, sp.created_at DESC
+`, filter.ViewerUserID, filter.Search, filter.UniversityName, filter.Faculty, filter.Specialization, filter.StudyYear)
+	if err != nil {
+		return nil, fmt.Errorf("list public student profiles: %w", err)
+	}
+	defer rows.Close()
+
+	var result []PublicStudentProfile
+	for rows.Next() {
+		var item PublicStudentProfile
+		var middleName string
+		var faculty string
+		var specialization string
+		var about string
+		var telegram string
+		var githubURL string
+		var linkedinURL string
+		var websiteURL string
+		var avatarURL string
+		var isContact bool
+		var incomingPending bool
+		var outgoingPending bool
+		if err := rows.Scan(
+			&item.UserID,
+			&item.DisplayName,
+			&avatarURL,
+			&item.LastName,
+			&item.FirstName,
+			&middleName,
+			&item.UniversityName,
+			&faculty,
+			&specialization,
+			&item.StudyYear,
+			&item.GraduationYear,
+			&about,
+			&item.ProfileVisibility,
+			&item.ShowResume,
+			&item.ShowApplications,
+			&item.ShowCareerInterests,
+			&telegram,
+			&githubURL,
+			&linkedinURL,
+			&websiteURL,
+			&item.ResumeCount,
+			&item.PortfolioCount,
+			&isContact,
+			&incomingPending,
+			&outgoingPending,
+			&item.CreatedAt,
+			&item.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan public student profiles: %w", err)
+		}
+		item.AvatarURL = avatarURL
+		item.MiddleName = middleName
+		item.Faculty = faculty
+		item.Specialization = specialization
+		item.About = about
+		item.Telegram = telegram
+		item.GithubURL = githubURL
+		item.LinkedinURL = linkedinURL
+		item.WebsiteURL = websiteURL
+		item.HasResume = item.ResumeCount > 0
+		item.HasPortfolio = item.PortfolioCount > 0
+		item.ContactRelation = "none"
+		if strings.TrimSpace(filter.ViewerUserID) != "" {
+			switch {
+			case strings.TrimSpace(filter.ViewerUserID) == item.UserID:
+				item.ContactRelation = "none"
+			case isContact:
+				item.ContactRelation = "contact"
+			case incomingPending:
+				item.ContactRelation = "incoming_pending"
+			case outgoingPending:
+				item.ContactRelation = "outgoing_pending"
+			}
+		}
+		result = append(result, item)
+	}
+	return result, rows.Err()
 }
 
 func (r *Repository) UpsertStudentProfile(profile StudentProfile, actorID string) (*StudentProfile, error) {
@@ -535,7 +715,7 @@ ORDER BY c.created_at DESC
 
 func (r *Repository) ListContactRequests(userID string) ([]ContactRequest, error) {
 	rows, err := r.db.QueryContext(context.Background(), `
-SELECT cr.id, cr.sender_user_id, cr.receiver_user_id, COALESCE(s.avatar_url, ''), COALESCE(r.avatar_url, ''), COALESCE(cr.message, ''), cr.status, cr.created_at, cr.updated_at
+SELECT cr.id, cr.sender_user_id, cr.receiver_user_id, s.display_name, r.display_name, COALESCE(s.avatar_url, ''), COALESCE(r.avatar_url, ''), COALESCE(cr.message, ''), cr.status, cr.created_at, cr.updated_at
 FROM contact_requests cr
 JOIN users s ON s.id = cr.sender_user_id
 JOIN users r ON r.id = cr.receiver_user_id
@@ -550,8 +730,13 @@ ORDER BY cr.created_at DESC
 	var result []ContactRequest
 	for rows.Next() {
 		var item ContactRequest
-		if err := rows.Scan(&item.ID, &item.SenderUserID, &item.ReceiverUserID, &item.SenderAvatarURL, &item.ReceiverAvatarURL, &item.Message, &item.Status, &item.CreatedAt, &item.UpdatedAt); err != nil {
+		if err := rows.Scan(&item.ID, &item.SenderUserID, &item.ReceiverUserID, &item.SenderName, &item.ReceiverName, &item.SenderAvatarURL, &item.ReceiverAvatarURL, &item.Message, &item.Status, &item.CreatedAt, &item.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan contact requests: %w", err)
+		}
+		if item.SenderUserID == userID {
+			item.Direction = "outgoing"
+		} else if item.ReceiverUserID == userID {
+			item.Direction = "incoming"
 		}
 		result = append(result, item)
 	}

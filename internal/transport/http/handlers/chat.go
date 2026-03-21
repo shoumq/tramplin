@@ -92,6 +92,17 @@ func (h *chatHub) userLeave(userID string) bool {
 	return false
 }
 
+// CreateConversation godoc
+// @Summary Создать или получить чат
+// @Tags chat
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param payload body dto.ChatConversationInput true "Данные для создания чата"
+// @Success 201 {object} ChatConversationResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Router /api/me/chats [post]
 func (h *ChatHandler) CreateConversation(c *fiber.Ctx) error {
 	userID, err := requiredUserID(c)
 	if err != nil {
@@ -108,6 +119,15 @@ func (h *ChatHandler) CreateConversation(c *fiber.Ctx) error {
 	return respond(c, fiber.StatusCreated, data)
 }
 
+// ListConversations godoc
+// @Summary Список чатов текущего пользователя
+// @Tags chat
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} ChatConversationListResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Router /api/me/chats [get]
 func (h *ChatHandler) ListConversations(c *fiber.Ctx) error {
 	userID, err := requiredUserID(c)
 	if err != nil {

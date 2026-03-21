@@ -24,7 +24,7 @@ func New(services *service.Services, jwtManager *authjwt.Manager) *Container {
 		Account:  &AccountHandler{service: services.Account},
 		Auth:     &AuthHandler{service: services.Auth},
 		Chat:     NewChatHandler(services.Chat, jwtManager),
-		Public:   &PublicHandler{service: services.Public},
+		Public:   &PublicHandler{service: services.Public, jwt: jwtManager},
 		Student:  &StudentHandler{service: services.Student},
 		Employer: &EmployerHandler{service: services.Employer},
 		Curator:  &CuratorHandler{service: services.Curator},
@@ -59,4 +59,23 @@ func requiredUserID(c *fiber.Ctx) (string, error) {
 		return "", fiber.NewError(fiber.StatusUnauthorized, "bearer token is required")
 	}
 	return userID, nil
+}
+
+func optionalUserID(c *fiber.Ctx, manager *authjwt.Manager) string {
+	if manager == nil {
+		return ""
+	}
+	header := strings.TrimSpace(c.Get("Authorization"))
+	if header == "" {
+		return ""
+	}
+	parts := strings.SplitN(header, " ", 2)
+	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+		return ""
+	}
+	claims, err := manager.Parse(strings.TrimSpace(parts[1]))
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(claims.UserID)
 }

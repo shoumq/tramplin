@@ -2,6 +2,7 @@ package public
 
 import (
 	"strconv"
+	"strings"
 
 	"tramplin/internal/dto"
 	"tramplin/internal/models"
@@ -34,8 +35,20 @@ func (s *Service) GetCompany(id string) (*models.Company, error) {
 	return s.repo.GetCompany(id)
 }
 
-func (s *Service) GetStudentProfile(id string) (*models.PublicStudentProfile, error) {
-	return s.repo.GetPublicStudentProfile(id)
+func (s *Service) GetStudentProfile(id, viewerUserID string) (*models.PublicStudentProfile, error) {
+	return s.repo.GetPublicStudentProfile(id, viewerUserID)
+}
+
+func (s *Service) ListStudents(params map[string]string, viewerUserID string) ([]models.PublicStudentProfile, error) {
+	studyYear, _ := strconv.Atoi(strings.TrimSpace(params["study_year"]))
+	return s.repo.ListPublicStudentProfiles(repository.StudentFilter{
+		ViewerUserID:   viewerUserID,
+		Search:         strings.TrimSpace(params["search"]),
+		UniversityName: strings.TrimSpace(params["university_name"]),
+		Faculty:        strings.TrimSpace(params["faculty"]),
+		Specialization: strings.TrimSpace(params["specialization"]),
+		StudyYear:      studyYear,
+	})
 }
 
 func (s *Service) ListTags() ([]models.Tag, error) {

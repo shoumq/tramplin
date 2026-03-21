@@ -3,11 +3,15 @@ package handlers
 import (
 	"github.com/gofiber/fiber/v2"
 
+	"tramplin/internal/authjwt"
 	"tramplin/internal/dto"
 	publicservice "tramplin/internal/service/public"
 )
 
-type PublicHandler struct{ service *publicservice.Service }
+type PublicHandler struct {
+	service *publicservice.Service
+	jwt     *authjwt.Manager
+}
 
 // ListOpportunities godoc
 // @Summary Список публичных возможностей
@@ -108,6 +112,26 @@ func (h *PublicHandler) ListCompanies(c *fiber.Ctx) error {
 	return respond(c, fiber.StatusOK, data)
 }
 
+// ListStudents godoc
+// @Summary Список публичных профилей студентов
+// @Tags public
+// @Produce json
+// @Param search query string false "Поиск по имени, университету, факультету, специализации"
+// @Param university_name query string false "Фильтр по университету"
+// @Param faculty query string false "Фильтр по факультету"
+// @Param specialization query string false "Фильтр по специализации"
+// @Param study_year query int false "Фильтр по курсу"
+// @Success 200 {object} SuccessResponse
+// @Failure 400 {object} ErrorResponse
+// @Router /api/students [get]
+func (h *PublicHandler) ListStudents(c *fiber.Ctx) error {
+	data, err := h.service.ListStudents(c.Queries(), optionalUserID(c, h.jwt))
+	if err != nil {
+		return fail(c, fiber.StatusBadRequest, err)
+	}
+	return respond(c, fiber.StatusOK, data)
+}
+
 // GetCompany godoc
 // @Summary Получить компанию по ID
 // @Tags public
@@ -134,7 +158,7 @@ func (h *PublicHandler) GetCompany(c *fiber.Ctx) error {
 // @Failure 404 {object} ErrorResponse
 // @Router /api/students/{id} [get]
 func (h *PublicHandler) GetStudentProfile(c *fiber.Ctx) error {
-	data, err := h.service.GetStudentProfile(c.Params("id"))
+	data, err := h.service.GetStudentProfile(c.Params("id"), optionalUserID(c, h.jwt))
 	if err != nil {
 		status := fiber.StatusNotFound
 		if err.Error() == "student profile is available only to authorized users" || err.Error() == "student profile is available only to contacts" {
