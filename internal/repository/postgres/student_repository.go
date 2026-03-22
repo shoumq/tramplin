@@ -750,6 +750,15 @@ func (r *Repository) CreateContactRequest(senderUserID, receiverUserID, message 
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	defer r.persistLocked()
+	senderUserID = strings.TrimSpace(senderUserID)
+	receiverUserID = strings.TrimSpace(receiverUserID)
+	message = strings.TrimSpace(message)
+	if receiverUserID == "" {
+		return nil, errors.New("receiver_user_id is required")
+	}
+	if _, err := uuid.Parse(receiverUserID); err != nil {
+		return nil, errors.New("receiver_user_id must be a valid UUID")
+	}
 	if senderUserID == receiverUserID {
 		return nil, errors.New("cannot create contact request to yourself")
 	}

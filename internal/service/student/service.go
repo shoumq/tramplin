@@ -1,9 +1,13 @@
 package student
 
 import (
+	"fmt"
+	"strings"
 	"tramplin/internal/dto"
 	"tramplin/internal/models"
 	"tramplin/internal/repository"
+
+	"github.com/google/uuid"
 )
 
 type Service struct{ repo repository.PlatformRepository }
@@ -92,7 +96,14 @@ func (s *Service) ListContactRequests(userID string) ([]models.ContactRequest, e
 }
 
 func (s *Service) CreateContactRequest(userID string, input dto.ContactRequestInput) (*models.ContactRequest, error) {
-	return s.repo.CreateContactRequest(userID, input.ReceiverUserID, input.Message)
+	receiverUserID := strings.TrimSpace(input.ReceiverUserID)
+	if receiverUserID == "" {
+		return nil, fmt.Errorf("receiver_user_id is required")
+	}
+	if _, err := uuid.Parse(receiverUserID); err != nil {
+		return nil, fmt.Errorf("receiver_user_id must be a valid UUID")
+	}
+	return s.repo.CreateContactRequest(userID, receiverUserID, strings.TrimSpace(input.Message))
 }
 
 func (s *Service) UpdateContactRequestStatus(userID, requestID string, input dto.ContactRequestInput) (*models.ContactRequest, error) {
