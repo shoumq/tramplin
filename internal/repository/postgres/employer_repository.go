@@ -238,6 +238,7 @@ func (r *Repository) CreateOpportunity(opportunity Opportunity) (*Opportunity, e
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	defer r.persistLocked()
+
 	profile, err := r.GetEmployerProfile(opportunity.CreatedByUserID)
 	if err != nil {
 		return nil, err
@@ -245,6 +246,7 @@ func (r *Repository) CreateOpportunity(opportunity Opportunity) (*Opportunity, e
 	if !profile.CanCreateOpportunities {
 		return nil, errors.New("company verification is required before creating opportunities")
 	}
+
 	now := time.Now()
 	opportunity.ID = uuid.NewString()
 	opportunity.CompanyID = profile.CompanyID
@@ -253,7 +255,21 @@ func (r *Repository) CreateOpportunity(opportunity Opportunity) (*Opportunity, e
 	if opportunity.Status == "" {
 		opportunity.Status = "pending_moderation"
 	}
-	_, err = r.db.ExecContext(context.Background(), `
+
+	tx, err := r.db.BeginTx(context.Background(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("begin create opportunity transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	if opportunity.LocationInput != nil {
+		opportunity.LocationID, err = r.createOpportunityLocation(context.Background(), tx, &opportunity)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	_, err = tx.ExecContext(context.Background(), `
 INSERT INTO opportunities (
 	id, company_id, created_by_user_id, title, short_description, full_description, opportunity_type, work_format, location_id, published_at, expires_at, status, contacts_info, external_url, views_count, favorites_count, applications_count, created_at, updated_at
 )
@@ -262,12 +278,49 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NULLIF($9, '')::uuid, $10, $11, $12, NUL
 	if err != nil {
 		return nil, fmt.Errorf("create opportunity: %w", err)
 	}
-	if err := r.replaceOpportunityTypeDetails(context.Background(), nil, &opportunity); err != nil {
+	if err := r.replaceOpportunityTypeDetails(context.Background(), tx, &opportunity); err != nil {
 		return nil, err
 	}
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit create opportunity transaction: %w", err)
+	}
+
 	r.addModerationItem("opportunity", opportunity.ID, opportunity.CreatedByUserID)
 	r.addAudit("create", "opportunities", opportunity.ID, opportunity.CreatedByUserID, opportunity.Title)
 	return &opportunity, nil
+}
+
+func (r *Repository) createOpportunityLocation(ctx context.Context, tx *sql.Tx, opportunity *Opportunity) (string, error) {
+	if opportunity == nil || opportunity.LocationInput == nil {
+		return "", nil
+	}
+
+	locationID := uuid.NewString()
+	displayText := strings.TrimSpace(opportunity.LocationInput.DisplayText)
+	if displayText == "" {
+		displayText = strings.TrimSpace(opportunity.LocationInput.AddressLine)
+	}
+
+	_, err := sqlExecTarget(r.db, tx).ExecContext(ctx, `
+INSERT INTO locations (
+	id, address_line, latitude, longitude, location_type, display_text, created_at
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+`, locationID, strings.TrimSpace(opportunity.LocationInput.AddressLine), opportunity.LocationInput.Latitude, opportunity.LocationInput.Longitude, opportunityLocationType(opportunity), displayText, time.Now())
+	if err != nil {
+		return "", fmt.Errorf("create opportunity location: %w", err)
+	}
+	return locationID, nil
+}
+
+func opportunityLocationType(opportunity *Opportunity) string {
+	if opportunity != nil && opportunity.OpportunityType == "event" {
+		return "event_place"
+	}
+	if opportunity != nil && opportunity.WorkFormat == "remote" {
+		return "remote_city"
+	}
+	return "office"
 }
 
 func (r *Repository) GetEmployerOpportunity(userID, opportunityID string) (*Opportunity, error) {
@@ -311,6 +364,13 @@ func (r *Repository) UpdateEmployerOpportunity(userID string, opportunity Opport
 	existing.WorkFormat = fallback(opportunity.WorkFormat, existing.WorkFormat)
 	if opportunity.LocationID != "" {
 		existing.LocationID = opportunity.LocationID
+	}
+	if opportunity.LocationInput != nil {
+		locationID, err := r.createOpportunityLocation(context.Background(), nil, &opportunity)
+		if err != nil {
+			return nil, err
+		}
+		existing.LocationID = locationID
 	}
 	if opportunity.SalaryMin != 0 {
 		existing.SalaryMin = opportunity.SalaryMin

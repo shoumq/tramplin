@@ -26,27 +26,35 @@ type VerificationInput struct {
 	DocumentsComment   string `json:"documents_comment"`
 }
 
+type OpportunityLocationInput struct {
+	AddressLine string   `json:"address_line"`
+	Latitude    *float64 `json:"latitude"`
+	Longitude   *float64 `json:"longitude"`
+	DisplayText string   `json:"display_text"`
+}
+
 type OpportunityInput struct {
-	Title               string   `json:"title"`
-	ShortDescription    string   `json:"short_description"`
-	FullDescription     string   `json:"full_description"`
-	OpportunityType     string   `json:"opportunity_type"`
-	VacancyLevel        string   `json:"vacancy_level"`
-	EmploymentType      string   `json:"employment_type"`
-	WorkFormat          string   `json:"work_format"`
-	LocationID          string   `json:"location_id"`
-	SalaryMin           float64  `json:"salary_min"`
-	SalaryMax           float64  `json:"salary_max"`
-	SalaryCurrency      string   `json:"salary_currency"`
-	IsSalaryVisible     bool     `json:"is_salary_visible"`
-	ContactsInfo        string   `json:"contacts_info"`
-	ExternalURL         string   `json:"external_url"`
-	Status              string   `json:"status"`
-	TagIDs              []string `json:"tag_ids"`
-	ApplicationDeadline string   `json:"application_deadline"`
-	EventStartAt        string   `json:"event_start_at"`
-	EventEndAt          string   `json:"event_end_at"`
-	ExpiresAt           string   `json:"expires_at"`
+	Title               string                    `json:"title"`
+	ShortDescription    string                    `json:"short_description"`
+	FullDescription     string                    `json:"full_description"`
+	OpportunityType     string                    `json:"opportunity_type"`
+	VacancyLevel        string                    `json:"vacancy_level"`
+	EmploymentType      string                    `json:"employment_type"`
+	WorkFormat          string                    `json:"work_format"`
+	LocationID          string                    `json:"location_id"`
+	LocationInput       *OpportunityLocationInput `json:"location_input"`
+	SalaryMin           float64                   `json:"salary_min"`
+	SalaryMax           float64                   `json:"salary_max"`
+	SalaryCurrency      string                    `json:"salary_currency"`
+	IsSalaryVisible     bool                      `json:"is_salary_visible"`
+	ContactsInfo        string                    `json:"contacts_info"`
+	ExternalURL         string                    `json:"external_url"`
+	Status              string                    `json:"status"`
+	TagIDs              []string                  `json:"tag_ids"`
+	ApplicationDeadline string                    `json:"application_deadline"`
+	EventStartAt        string                    `json:"event_start_at"`
+	EventEndAt          string                    `json:"event_end_at"`
+	ExpiresAt           string                    `json:"expires_at"`
 }
 
 type EmployerProfileInput struct {

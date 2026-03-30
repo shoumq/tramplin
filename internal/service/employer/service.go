@@ -76,6 +76,9 @@ func (s *Service) ListOpportunities(userID string) ([]models.Opportunity, error)
 }
 
 func (s *Service) CreateOpportunity(userID string, input dto.OpportunityInput) (*models.Opportunity, error) {
+	if err := validateOpportunityLocation(input); err != nil {
+		return nil, err
+	}
 	return s.repo.CreateOpportunity(buildOpportunity(userID, "", input))
 }
 
@@ -84,6 +87,9 @@ func (s *Service) GetOpportunity(userID, opportunityID string) (*models.Opportun
 }
 
 func (s *Service) UpdateOpportunity(userID, opportunityID string, input dto.OpportunityInput) (*models.Opportunity, error) {
+	if err := validateOpportunityLocation(input); err != nil {
+		return nil, err
+	}
 	return s.repo.UpdateEmployerOpportunity(userID, buildOpportunity(userID, opportunityID, input))
 }
 
@@ -107,6 +113,7 @@ func buildOpportunity(userID, opportunityID string, input dto.OpportunityInput) 
 		EmploymentType:      input.EmploymentType,
 		WorkFormat:          input.WorkFormat,
 		LocationID:          input.LocationID,
+		LocationInput:       buildOpportunityLocationInput(input.LocationInput),
 		SalaryMin:           input.SalaryMin,
 		SalaryMax:           input.SalaryMax,
 		SalaryCurrency:      input.SalaryCurrency,
@@ -120,6 +127,43 @@ func buildOpportunity(userID, opportunityID string, input dto.OpportunityInput) 
 		EventEndAt:          parseTime(input.EventEndAt),
 		ExpiresAt:           parseTime(input.ExpiresAt),
 	}
+}
+
+func buildOpportunityLocationInput(input *dto.OpportunityLocationInput) *models.OpportunityLocationInput {
+	if input == nil || input.Latitude == nil || input.Longitude == nil {
+		return nil
+	}
+	return &models.OpportunityLocationInput{
+		AddressLine: input.AddressLine,
+		Latitude:    *input.Latitude,
+		Longitude:   *input.Longitude,
+		DisplayText: input.DisplayText,
+	}
+}
+
+func validateOpportunityLocation(input dto.OpportunityInput) error {
+	if strings.TrimSpace(input.LocationID) != "" && input.LocationInput != nil {
+		return fmt.Errorf("location_id and location_input cannot be provided together")
+	}
+	if input.LocationInput == nil {
+		return nil
+	}
+	if strings.TrimSpace(input.LocationInput.AddressLine) == "" {
+		return fmt.Errorf("location_input.address_line is required")
+	}
+	if input.LocationInput.Latitude == nil {
+		return fmt.Errorf("location_input.latitude is required")
+	}
+	if input.LocationInput.Longitude == nil {
+		return fmt.Errorf("location_input.longitude is required")
+	}
+	if *input.LocationInput.Latitude < -90 || *input.LocationInput.Latitude > 90 {
+		return fmt.Errorf("location_input.latitude must be between -90 and 90")
+	}
+	if *input.LocationInput.Longitude < -180 || *input.LocationInput.Longitude > 180 {
+		return fmt.Errorf("location_input.longitude must be between -180 and 180")
+	}
+	return nil
 }
 
 func parseTime(value string) time.Time {

@@ -110,6 +110,8 @@ definitions:
         type: boolean
       location_id:
         type: string
+      location_input:
+        $ref: '#/definitions/dto.OpportunityLocationInput'
       opportunity_type:
         type: string
       salary_currency:
@@ -132,6 +134,17 @@ definitions:
         type: string
       work_format:
         type: string
+    type: object
+  dto.OpportunityLocationInput:
+    properties:
+      address_line:
+        type: string
+      display_text:
+        type: string
+      latitude:
+        type: number
+      longitude:
+        type: number
     type: object
   dto.PortfolioProjectInput:
     properties:

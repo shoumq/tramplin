@@ -161,6 +161,13 @@ type Location struct {
 	CreatedAt    time.Time `json:"created_at"`
 }
 
+type OpportunityLocationInput struct {
+	AddressLine string  `json:"-"`
+	Latitude    float64 `json:"-"`
+	Longitude   float64 `json:"-"`
+	DisplayText string  `json:"-"`
+}
+
 type Tag struct {
 	ID              string    `json:"id"`
 	Name            string    `json:"name"`
@@ -172,35 +179,36 @@ type Tag struct {
 }
 
 type Opportunity struct {
-	ID                  string    `json:"id"`
-	CompanyID           string    `json:"company_id"`
-	CreatedByUserID     string    `json:"created_by_user_id"`
-	Title               string    `json:"title"`
-	ShortDescription    string    `json:"short_description"`
-	FullDescription     string    `json:"full_description"`
-	OpportunityType     string    `json:"opportunity_type"`
-	VacancyLevel        string    `json:"vacancy_level,omitempty"`
-	EmploymentType      string    `json:"employment_type,omitempty"`
-	WorkFormat          string    `json:"work_format"`
-	LocationID          string    `json:"location_id,omitempty"`
-	SalaryMin           float64   `json:"salary_min,omitempty"`
-	SalaryMax           float64   `json:"salary_max,omitempty"`
-	SalaryCurrency      string    `json:"salary_currency,omitempty"`
-	IsSalaryVisible     bool      `json:"is_salary_visible"`
-	ApplicationDeadline time.Time `json:"application_deadline,omitempty"`
-	EventStartAt        time.Time `json:"event_start_at,omitempty"`
-	EventEndAt          time.Time `json:"event_end_at,omitempty"`
-	PublishedAt         time.Time `json:"published_at,omitempty"`
-	ExpiresAt           time.Time `json:"expires_at,omitempty"`
-	Status              string    `json:"status"`
-	ContactsInfo        string    `json:"contacts_info,omitempty"`
-	ExternalURL         string    `json:"external_url,omitempty"`
-	ViewsCount          int       `json:"views_count"`
-	FavoritesCount      int       `json:"favorites_count"`
-	ApplicationsCount   int       `json:"applications_count"`
-	CreatedAt           time.Time `json:"created_at"`
-	UpdatedAt           time.Time `json:"updated_at"`
-	TagIDs              []string  `json:"tag_ids,omitempty"`
+	ID                  string                    `json:"id"`
+	CompanyID           string                    `json:"company_id"`
+	CreatedByUserID     string                    `json:"created_by_user_id"`
+	Title               string                    `json:"title"`
+	ShortDescription    string                    `json:"short_description"`
+	FullDescription     string                    `json:"full_description"`
+	OpportunityType     string                    `json:"opportunity_type"`
+	VacancyLevel        string                    `json:"vacancy_level,omitempty"`
+	EmploymentType      string                    `json:"employment_type,omitempty"`
+	WorkFormat          string                    `json:"work_format"`
+	LocationID          string                    `json:"location_id,omitempty"`
+	LocationInput       *OpportunityLocationInput `json:"-"`
+	SalaryMin           float64                   `json:"salary_min,omitempty"`
+	SalaryMax           float64                   `json:"salary_max,omitempty"`
+	SalaryCurrency      string                    `json:"salary_currency,omitempty"`
+	IsSalaryVisible     bool                      `json:"is_salary_visible"`
+	ApplicationDeadline time.Time                 `json:"application_deadline,omitempty"`
+	EventStartAt        time.Time                 `json:"event_start_at,omitempty"`
+	EventEndAt          time.Time                 `json:"event_end_at,omitempty"`
+	PublishedAt         time.Time                 `json:"published_at,omitempty"`
+	ExpiresAt           time.Time                 `json:"expires_at,omitempty"`
+	Status              string                    `json:"status"`
+	ContactsInfo        string                    `json:"contacts_info,omitempty"`
+	ExternalURL         string                    `json:"external_url,omitempty"`
+	ViewsCount          int                       `json:"views_count"`
+	FavoritesCount      int                       `json:"favorites_count"`
+	ApplicationsCount   int                       `json:"applications_count"`
+	CreatedAt           time.Time                 `json:"created_at"`
+	UpdatedAt           time.Time                 `json:"updated_at"`
+	TagIDs              []string                  `json:"tag_ids,omitempty"`
 }
 
 type Resume struct {

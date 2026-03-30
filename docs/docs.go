@@ -2784,6 +2784,9 @@ const docTemplate = `{
                 "location_id": {
                     "type": "string"
                 },
+                "location_input": {
+                    "$ref": "#/definitions/dto.OpportunityLocationInput"
+                },
                 "opportunity_type": {
                     "type": "string"
                 },
@@ -2816,6 +2819,23 @@ const docTemplate = `{
                 },
                 "work_format": {
                     "type": "string"
+                }
+            }
+        },
+        "dto.OpportunityLocationInput": {
+            "type": "object",
+            "properties": {
+                "address_line": {
+                    "type": "string"
+                },
+                "display_text": {
+                    "type": "string"
+                },
+                "latitude": {
+                    "type": "number"
+                },
+                "longitude": {
+                    "type": "number"
                 }
             }
         },
