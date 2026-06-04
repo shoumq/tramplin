@@ -1,9 +1,12 @@
 package handlers
 
 import (
+	"errors"
+
 	"github.com/gofiber/fiber/v2"
 
 	"tramplin/internal/dto"
+	aiservice "tramplin/internal/service/ai"
 	employerservice "tramplin/internal/service/employer"
 )
 
@@ -243,6 +246,36 @@ func (h *EmployerHandler) UpdateOpportunity(c *fiber.Ctx) error {
 	data, err := h.service.UpdateOpportunity(userID, c.Params("id"), input)
 	if err != nil {
 		return fail(c, fiber.StatusBadRequest, err)
+	}
+	return respond(c, fiber.StatusOK, data)
+}
+
+// AnalyzeOpportunity godoc
+// @Summary ИИ-аналитика вакансии работодателя
+// @Tags employer
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID вакансии"
+// @Success 200 {object} SuccessResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Failure 503 {object} ErrorResponse
+// @Router /api/employer/opportunities/{id}/analytics [post]
+func (h *EmployerHandler) AnalyzeOpportunity(c *fiber.Ctx) error {
+	userID, err := requiredUserID(c)
+	if err != nil {
+		return fail(c, fiber.StatusUnauthorized, err)
+	}
+	data, err := h.service.AnalyzeOpportunity(c.UserContext(), userID, c.Params("id"))
+	if err != nil {
+		status := fiber.StatusBadRequest
+		if errors.Is(err, aiservice.ErrNotConfigured) {
+			status = fiber.StatusServiceUnavailable
+		}
+		if errors.Is(err, aiservice.ErrProvider) {
+			status = fiber.StatusBadGateway
+		}
+		return fail(c, status, err)
 	}
 	return respond(c, fiber.StatusOK, data)
 }

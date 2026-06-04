@@ -223,6 +223,25 @@ type Resume struct {
 	UpdatedAt      time.Time `json:"updated_at"`
 }
 
+type StudentResumeDetail struct {
+	Resume          Resume                 `json:"resume"`
+	WorkExperiences []ResumeWorkExperience `json:"work_experiences"`
+}
+
+type ResumeWorkExperience struct {
+	ID            string    `json:"id"`
+	ResumeID      string    `json:"resume_id"`
+	CompanyID     string    `json:"company_id,omitempty"`
+	Company       *Company  `json:"company,omitempty"`
+	CompanyName   string    `json:"company_name,omitempty"`
+	PositionTitle string    `json:"position_title"`
+	StartedAt     string    `json:"started_at"`
+	FinishedAt    string    `json:"finished_at,omitempty"`
+	Description   string    `json:"description"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}
+
 type PortfolioProject struct {
 	ID            string    `json:"id"`
 	StudentUserID string    `json:"student_user_id"`
@@ -264,6 +283,21 @@ type ContactRequest struct {
 	Status            string    `json:"status"`
 	CreatedAt         time.Time `json:"created_at"`
 	UpdatedAt         time.Time `json:"updated_at"`
+}
+
+type NetworkingSuggestion struct {
+	User                User   `json:"user"`
+	MutualContactsCount int    `json:"mutual_contacts_count"`
+	Reason              string `json:"reason"`
+	Source              string `json:"source"`
+}
+
+type NetworkingOverview struct {
+	UserID           string                 `json:"user_id"`
+	Contacts         []User                 `json:"contacts"`
+	IncomingRequests []ContactRequest       `json:"incoming_requests"`
+	OutgoingRequests []ContactRequest       `json:"outgoing_requests"`
+	SuggestedPeople  []NetworkingSuggestion `json:"suggested_people"`
 }
 
 type Recommendation struct {

@@ -115,6 +115,47 @@ go run ./cmd/api
 - `S3_ENDPOINT` - адрес MinIO/S3
 - `S3_BUCKET` - bucket для аватаров
 - `S3_PUBLIC_URL` - публичный base URL для ссылок на аватары
+- `YANDEX_CLOUD_FOLDER` - folder ID Yandex Cloud для ИИ-аналитики вакансий
+- `YANDEX_CLOUD_API_KEY` - API key Yandex Cloud
+- `YANDEX_CLOUD_MODEL` - модель для аналитики, по умолчанию `deepseek-v4-flash/latest`
+
+## ИИ-аналитика вакансий
+
+Для работодателей доступна ручка:
+
+```text
+POST /api/employer/opportunities/{id}/analytics
+Authorization: Bearer <access_token>
+```
+
+Для соискателей и других авторизованных пользователей доступна ручка без проверки владельца вакансии:
+
+```text
+POST /api/opportunities/{id}/analytics
+Authorization: Bearer <access_token>
+```
+
+Для нетворкинга доступна сводка связей и рекомендаций:
+
+```text
+GET /api/me/networking
+Authorization: Bearer <access_token>
+```
+
+AI-ручки анализируют вакансию через Yandex AI и возвращают HTML-рекомендации в поле `data.analysis`. Для работы задайте `YANDEX_CLOUD_FOLDER` и `YANDEX_CLOUD_API_KEY`.
+
+## Опыт работы в резюме
+
+Опыт работы хранится внутри резюме и доступен через:
+
+```text
+GET /api/me/resumes/{id}/work-experiences
+POST /api/me/resumes/{id}/work-experiences
+PATCH /api/me/resumes/{id}/work-experiences/{experienceId}
+DELETE /api/me/resumes/{id}/work-experiences/{experienceId}
+```
+
+Если компания есть в системе, передавайте `company_id` и фронт может брать данные компании из `GET /api/companies` или `GET /api/companies/{id}`. Если компании нет, передавайте `company_name`. Формат дат: `YYYY-MM-DD`.
 
 ## Swagger
 

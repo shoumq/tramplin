@@ -28,6 +28,15 @@ type ResumeInput struct {
 	EducationText  string `json:"education_text"`
 }
 
+type ResumeWorkExperienceInput struct {
+	CompanyID     string `json:"company_id"`
+	CompanyName   string `json:"company_name"`
+	PositionTitle string `json:"position_title"`
+	StartedAt     string `json:"started_at"`
+	FinishedAt    string `json:"finished_at"`
+	Description   string `json:"description"`
+}
+
 type PortfolioProjectInput struct {
 	Title         string `json:"title"`
 	Description   string `json:"description"`

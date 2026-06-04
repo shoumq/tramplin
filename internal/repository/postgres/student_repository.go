@@ -403,6 +403,10 @@ ORDER BY created_at DESC
 	return result, rows.Err()
 }
 
+func (r *Repository) GetResume(studentUserID, resumeID string) (*Resume, error) {
+	return r.getStudentResume(studentUserID, resumeID)
+}
+
 func (r *Repository) CreateResume(resume Resume) (*Resume, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -459,6 +463,222 @@ WHERE id = $1 AND student_user_id = $2
 	resume.IsPrimary = true
 	resume.UpdatedAt = now
 	return &resume, nil
+}
+
+func (r *Repository) getStudentResume(studentUserID, resumeID string) (*Resume, error) {
+	var resume Resume
+	err := r.db.QueryRowContext(context.Background(), `
+SELECT id, student_user_id, title, COALESCE(summary, ''), COALESCE(experience_text, ''), COALESCE(education_text, ''), is_primary, created_at, updated_at
+FROM resumes
+WHERE id = $1 AND student_user_id = $2
+`, resumeID, studentUserID).Scan(&resume.ID, &resume.StudentUserID, &resume.Title, &resume.Summary, &resume.ExperienceText, &resume.EducationText, &resume.IsPrimary, &resume.CreatedAt, &resume.UpdatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, errors.New("resume not found")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get resume: %w", err)
+	}
+	return &resume, nil
+}
+
+func (r *Repository) ListResumeWorkExperiences(studentUserID, resumeID string) ([]ResumeWorkExperience, error) {
+	if _, err := r.getStudentResume(studentUserID, resumeID); err != nil {
+		return nil, err
+	}
+	rows, err := r.db.QueryContext(context.Background(), `
+SELECT id, resume_id, COALESCE(company_id::text, ''), COALESCE(company_name, ''), position_title, started_at, finished_at, description, created_at, updated_at
+FROM resume_work_experiences
+WHERE resume_id = $1
+ORDER BY started_at DESC, created_at DESC
+`, resumeID)
+	if err != nil {
+		return nil, fmt.Errorf("list resume work experiences: %w", err)
+	}
+	defer rows.Close()
+
+	var result []ResumeWorkExperience
+	for rows.Next() {
+		var item ResumeWorkExperience
+		var companyID string
+		var companyName string
+		var finishedAt sql.NullTime
+		var company *Company
+		if err := rows.Scan(&item.ID, &item.ResumeID, &companyID, &companyName, &item.PositionTitle, &item.StartedAt, &finishedAt, &item.Description, &item.CreatedAt, &item.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("scan resume work experiences: %w", err)
+		}
+		item.CompanyID = companyID
+		item.CompanyName = companyName
+		if finishedAt.Valid {
+			item.FinishedAt = finishedAt.Time.Format("2006-01-02")
+		}
+		if strings.TrimSpace(companyID) != "" {
+			if fetchedCompany, err := r.GetCompany(companyID); err == nil {
+				company = fetchedCompany
+				if strings.TrimSpace(item.CompanyName) == "" {
+					item.CompanyName = firstNonEmpty(company.BrandName, company.LegalName)
+				}
+			}
+		}
+		item.Company = company
+		result = append(result, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate resume work experiences: %w", err)
+	}
+	return result, nil
+}
+
+func (r *Repository) CreateResumeWorkExperience(studentUserID, resumeID string, experience ResumeWorkExperience) (*ResumeWorkExperience, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	defer r.persistLocked()
+	if _, err := r.getStudentResume(studentUserID, resumeID); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(experience.CompanyID) == "" && strings.TrimSpace(experience.CompanyName) == "" {
+		return nil, errors.New("company_id or company_name is required")
+	}
+	if strings.TrimSpace(experience.CompanyID) != "" {
+		company, err := r.GetCompany(experience.CompanyID)
+		if err != nil {
+			return nil, err
+		}
+		if strings.TrimSpace(experience.CompanyName) == "" {
+			experience.CompanyName = firstNonEmpty(company.BrandName, company.LegalName)
+		}
+		experience.Company = company
+	}
+	now := time.Now()
+	experience.ID = uuid.NewString()
+	experience.ResumeID = resumeID
+	experience.CreatedAt = now
+	experience.UpdatedAt = now
+	var created ResumeWorkExperience
+	var companyID sql.NullString
+	var companyName sql.NullString
+	var finishedAt sql.NullTime
+	err := r.db.QueryRowContext(context.Background(), `
+INSERT INTO resume_work_experiences (
+	id, resume_id, company_id, company_name, position_title, started_at, finished_at, description, created_at, updated_at
+)
+VALUES ($1, $2, NULLIF($3, '')::uuid, NULLIF($4, ''), $5, $6, NULLIF($7, '')::date, $8, $9, $10)
+RETURNING id, resume_id, COALESCE(company_id::text, ''), COALESCE(company_name, ''), position_title, started_at, finished_at, description, created_at, updated_at
+`, experience.ID, experience.ResumeID, experience.CompanyID, experience.CompanyName, experience.PositionTitle, experience.StartedAt, experience.FinishedAt, experience.Description, experience.CreatedAt, experience.UpdatedAt).Scan(&created.ID, &created.ResumeID, &companyID, &companyName, &created.PositionTitle, &created.StartedAt, &finishedAt, &created.Description, &created.CreatedAt, &created.UpdatedAt)
+	if err != nil {
+		return nil, fmt.Errorf("create resume work experience: %w", err)
+	}
+	created.CompanyID = companyID.String
+	created.CompanyName = companyName.String
+	if finishedAt.Valid {
+		created.FinishedAt = finishedAt.Time.Format("2006-01-02")
+	}
+	if strings.TrimSpace(created.CompanyID) != "" {
+		if company, err := r.GetCompany(created.CompanyID); err == nil {
+			created.Company = company
+			if strings.TrimSpace(created.CompanyName) == "" {
+				created.CompanyName = firstNonEmpty(company.BrandName, company.LegalName)
+			}
+		}
+	}
+	if strings.TrimSpace(created.CompanyName) == "" {
+		created.CompanyName = experience.CompanyName
+	}
+	r.addAudit("create", "resume_work_experiences", created.ID, studentUserID, created.PositionTitle)
+	return &created, nil
+}
+
+func (r *Repository) UpdateResumeWorkExperience(studentUserID, resumeID string, experience ResumeWorkExperience) (*ResumeWorkExperience, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	defer r.persistLocked()
+	if _, err := r.getStudentResume(studentUserID, resumeID); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(experience.CompanyID) == "" && strings.TrimSpace(experience.CompanyName) == "" {
+		return nil, errors.New("company_id or company_name is required")
+	}
+	if strings.TrimSpace(experience.CompanyID) != "" {
+		company, err := r.GetCompany(experience.CompanyID)
+		if err != nil {
+			return nil, err
+		}
+		if strings.TrimSpace(experience.CompanyName) == "" {
+			experience.CompanyName = firstNonEmpty(company.BrandName, company.LegalName)
+		}
+		experience.Company = company
+	}
+	var current ResumeWorkExperience
+	var companyID sql.NullString
+	var companyName sql.NullString
+	var finishedAt sql.NullTime
+	err := r.db.QueryRowContext(context.Background(), `
+SELECT id, resume_id, COALESCE(company_id::text, ''), COALESCE(company_name, ''), position_title, started_at, finished_at, description, created_at, updated_at
+FROM resume_work_experiences
+WHERE id = $1 AND resume_id = $2
+`, experience.ID, resumeID).Scan(&current.ID, &current.ResumeID, &companyID, &companyName, &current.PositionTitle, &current.StartedAt, &finishedAt, &current.Description, &current.CreatedAt, &current.UpdatedAt)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errors.New("work experience not found")
+		}
+		return nil, fmt.Errorf("get resume work experience: %w", err)
+	}
+	updated := ResumeWorkExperience{
+		ID:            current.ID,
+		ResumeID:      resumeID,
+		CompanyID:     experience.CompanyID,
+		CompanyName:   experience.CompanyName,
+		PositionTitle: experience.PositionTitle,
+		StartedAt:     experience.StartedAt,
+		FinishedAt:    experience.FinishedAt,
+		Description:   experience.Description,
+		CreatedAt:     current.CreatedAt,
+		UpdatedAt:     time.Now(),
+	}
+	if _, err := r.db.ExecContext(context.Background(), `
+UPDATE resume_work_experiences
+SET company_id = NULLIF($3, '')::uuid,
+    company_name = NULLIF($4, ''),
+    position_title = $5,
+    started_at = $6::date,
+    finished_at = NULLIF($7, '')::date,
+    description = $8,
+    updated_at = $9
+WHERE id = $1 AND resume_id = $2
+`, updated.ID, updated.ResumeID, updated.CompanyID, updated.CompanyName, updated.PositionTitle, updated.StartedAt, updated.FinishedAt, updated.Description, updated.UpdatedAt); err != nil {
+		return nil, fmt.Errorf("update resume work experience: %w", err)
+	}
+	if strings.TrimSpace(updated.CompanyID) != "" {
+		if company, err := r.GetCompany(updated.CompanyID); err == nil {
+			updated.Company = company
+			if strings.TrimSpace(updated.CompanyName) == "" {
+				updated.CompanyName = firstNonEmpty(company.BrandName, company.LegalName)
+			}
+		}
+	}
+	r.addAudit("update", "resume_work_experiences", updated.ID, studentUserID, updated.PositionTitle)
+	return &updated, nil
+}
+
+func (r *Repository) DeleteResumeWorkExperience(studentUserID, resumeID, experienceID string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	defer r.persistLocked()
+	if _, err := r.getStudentResume(studentUserID, resumeID); err != nil {
+		return err
+	}
+	res, err := r.db.ExecContext(context.Background(), `
+DELETE FROM resume_work_experiences
+WHERE id = $1 AND resume_id = $2
+`, experienceID, resumeID)
+	if err != nil {
+		return fmt.Errorf("delete resume work experience: %w", err)
+	}
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		return errors.New("work experience not found")
+	}
+	r.addAudit("delete", "resume_work_experiences", experienceID, studentUserID, "work experience deleted")
+	return nil
 }
 
 func (r *Repository) ListPortfolioProjects(studentUserID string) ([]PortfolioProject, error) {
@@ -715,10 +935,31 @@ ORDER BY c.created_at DESC
 
 func (r *Repository) ListContactRequests(userID string) ([]ContactRequest, error) {
 	rows, err := r.db.QueryContext(context.Background(), `
-SELECT cr.id, cr.sender_user_id, cr.receiver_user_id, s.display_name, r.display_name, COALESCE(s.avatar_url, ''), COALESCE(r.avatar_url, ''), COALESCE(cr.message, ''), cr.status, cr.created_at, cr.updated_at
+SELECT
+  cr.id,
+  cr.sender_user_id,
+  cr.receiver_user_id,
+  CASE
+    WHEN COALESCE(TRIM(sp_s.first_name), '') <> '' AND COALESCE(TRIM(sp_s.last_name), '') <> ''
+    THEN TRIM(sp_s.first_name) || ' ' || TRIM(sp_s.last_name)
+    ELSE s.display_name
+  END AS sender_name,
+  CASE
+    WHEN COALESCE(TRIM(sp_r.first_name), '') <> '' AND COALESCE(TRIM(sp_r.last_name), '') <> ''
+    THEN TRIM(sp_r.first_name) || ' ' || TRIM(sp_r.last_name)
+    ELSE r.display_name
+  END AS receiver_name,
+  COALESCE(s.avatar_url, ''),
+  COALESCE(r.avatar_url, ''),
+  COALESCE(cr.message, ''),
+  cr.status,
+  cr.created_at,
+  cr.updated_at
 FROM contact_requests cr
 JOIN users s ON s.id = cr.sender_user_id
 JOIN users r ON r.id = cr.receiver_user_id
+LEFT JOIN student_profiles sp_s ON sp_s.user_id = cr.sender_user_id
+LEFT JOIN student_profiles sp_r ON sp_r.user_id = cr.receiver_user_id
 WHERE cr.sender_user_id = $1 OR cr.receiver_user_id = $1
 ORDER BY cr.created_at DESC
 `, userID)
@@ -742,6 +983,56 @@ ORDER BY cr.created_at DESC
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate contact requests: %w", err)
+	}
+	return result, nil
+}
+
+func (r *Repository) ListNetworkingSuggestions(userID string, limit int) ([]NetworkingSuggestion, error) {
+	if limit <= 0 {
+		limit = 8
+	}
+	rows, err := r.db.QueryContext(context.Background(), `
+SELECT candidate_id, COUNT(DISTINCT mutual_contact_id) AS mutual_contacts_count
+FROM (
+	SELECT
+		c2.contact_user_id AS candidate_id,
+		c1.contact_user_id AS mutual_contact_id
+	FROM contacts c1
+	JOIN contacts c2 ON c2.user_id = c1.contact_user_id
+	LEFT JOIN contacts existing ON existing.user_id = $1 AND existing.contact_user_id = c2.contact_user_id
+	WHERE c1.user_id = $1
+		AND c2.contact_user_id <> $1
+		AND existing.user_id IS NULL
+) network_candidates
+GROUP BY candidate_id
+ORDER BY mutual_contacts_count DESC, candidate_id
+LIMIT $2
+`, userID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list networking suggestions ids: %w", err)
+	}
+	defer rows.Close()
+
+	var result []NetworkingSuggestion
+	for rows.Next() {
+		var candidateID string
+		var mutualCount int
+		if err := rows.Scan(&candidateID, &mutualCount); err != nil {
+			return nil, fmt.Errorf("scan networking suggestions ids: %w", err)
+		}
+		user, err := r.getUserByID(context.Background(), candidateID)
+		if err != nil {
+			continue
+		}
+		result = append(result, NetworkingSuggestion{
+			User:                *user,
+			MutualContactsCount: mutualCount,
+			Reason:              networkingSuggestionReason(mutualCount),
+			Source:              "mutual_contacts",
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate networking suggestions ids: %w", err)
 	}
 	return result, nil
 }
@@ -824,6 +1115,19 @@ WHERE id = $1
 	return &item, nil
 }
 
+func networkingSuggestionReason(mutualContactsCount int) string {
+	if mutualContactsCount <= 0 {
+		return "Есть связь через сеть контактов"
+	}
+	if mutualContactsCount == 1 {
+		return "1 общий контакт"
+	}
+	if mutualContactsCount >= 5 {
+		return fmt.Sprintf("%d общих контактов", mutualContactsCount)
+	}
+	return fmt.Sprintf("%d общих контакта", mutualContactsCount)
+}
+
 func (r *Repository) CreateRecommendation(rec Recommendation) (*Recommendation, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -888,4 +1192,20 @@ ORDER BY created_at DESC
 		return nil, fmt.Errorf("iterate notifications: %w", err)
 	}
 	return result, nil
+}
+
+func (r *Repository) MarkAllNotificationsRead(userID string) error {
+	_, err := r.db.ExecContext(context.Background(),
+		`UPDATE notifications SET is_read = TRUE WHERE user_id = $1 AND is_read = FALSE`,
+		userID,
+	)
+	return err
+}
+
+func (r *Repository) MarkNotificationRead(userID, notificationID string) error {
+	_, err := r.db.ExecContext(context.Background(),
+		`UPDATE notifications SET is_read = TRUE WHERE id = $1 AND user_id = $2`,
+		notificationID, userID,
+	)
+	return err
 }

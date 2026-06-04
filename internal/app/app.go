@@ -15,6 +15,7 @@ import (
 	"tramplin/internal/database"
 	"tramplin/internal/repository/postgres"
 	"tramplin/internal/service"
+	aiservice "tramplin/internal/service/ai"
 	"tramplin/internal/storage"
 	miniostorage "tramplin/internal/storage/minio"
 	httptransport "tramplin/internal/transport/http"
@@ -61,7 +62,17 @@ func New(cfg config.Config) (*fiber.App, error) {
 
 	jwtManager := authjwt.New(cfg.JWTSecret, cfg.JWTTTL)
 
-	services := service.New(repo, objectStorage, jwtManager)
+	aiClient := aiservice.New(aiservice.Config{
+		FolderID:        cfg.YandexAI.FolderID,
+		APIKey:          cfg.YandexAI.APIKey,
+		Model:           cfg.YandexAI.Model,
+		Endpoint:        cfg.YandexAI.Endpoint,
+		MaxOutputTokens: cfg.YandexAI.MaxOutputTokens,
+		Temperature:     cfg.YandexAI.Temperature,
+		Timeout:         cfg.YandexAI.Timeout,
+	})
+
+	services := service.New(repo, objectStorage, jwtManager, aiClient)
 	httpHandlers := handlers.New(services, jwtManager)
 
 	httptransport.RegisterRoutes(application, httpHandlers, jwtManager)

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"time"
 )
@@ -18,6 +19,17 @@ type Config struct {
 	S3PublicURL   string
 	JWTSecret     string
 	JWTTTL        time.Duration
+	YandexAI      YandexAIConfig
+}
+
+type YandexAIConfig struct {
+	FolderID        string
+	APIKey          string
+	Model           string
+	Endpoint        string
+	MaxOutputTokens int
+	Temperature     float64
+	Timeout         time.Duration
 }
 
 func Load() Config {
@@ -34,6 +46,15 @@ func Load() Config {
 		S3PublicURL:   getEnv("S3_PUBLIC_URL", "http://localhost:9000"),
 		JWTSecret:     getEnv("JWT_SECRET", "change-me"),
 		JWTTTL:        getEnvDuration("JWT_TTL", 24*time.Hour),
+		YandexAI: YandexAIConfig{
+			FolderID:        getEnv("YANDEX_CLOUD_FOLDER", ""),
+			APIKey:          getEnv("YANDEX_CLOUD_API_KEY", ""),
+			Model:           getEnv("YANDEX_CLOUD_MODEL", "deepseek-v4-flash/latest"),
+			Endpoint:        getEnv("YANDEX_AI_ENDPOINT", "https://ai.api.cloud.yandex.net/v1/responses"),
+			MaxOutputTokens: getEnvInt("YANDEX_AI_MAX_OUTPUT_TOKENS", 2000),
+			Temperature:     getEnvFloat("YANDEX_AI_TEMPERATURE", 0.3),
+			Timeout:         getEnvDuration("YANDEX_AI_TIMEOUT", 2*time.Minute),
+		},
 	}
 }
 
@@ -53,6 +74,30 @@ func getEnvDuration(key string, fallback time.Duration) time.Duration {
 	}
 	parsed, err := time.ParseDuration(value)
 	if err != nil {
+		return fallback
+	}
+	return parsed
+}
+
+func getEnvInt(key string, fallback int) int {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+	var parsed int
+	if _, err := fmt.Sscanf(value, "%d", &parsed); err != nil {
+		return fallback
+	}
+	return parsed
+}
+
+func getEnvFloat(key string, fallback float64) float64 {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+	var parsed float64
+	if _, err := fmt.Sscanf(value, "%f", &parsed); err != nil {
 		return fallback
 	}
 	return parsed

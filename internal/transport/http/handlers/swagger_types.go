@@ -21,3 +21,8 @@ type ChatConversationListResponse struct {
 	Status string                    `json:"status" example:"ok"`
 	Data   []models.ChatConversation `json:"data"`
 }
+
+type NetworkingOverviewResponse struct {
+	Status string                    `json:"status" example:"ok"`
+	Data   models.NetworkingOverview `json:"data"`
+}

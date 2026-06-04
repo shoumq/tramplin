@@ -1,5 +1,7 @@
 package dto
 
+import "time"
+
 type CompanyInput struct {
 	LegalName   string `json:"legal_name"`
 	BrandName   string `json:"brand_name"`
@@ -55,6 +57,13 @@ type OpportunityInput struct {
 	EventStartAt        string                    `json:"event_start_at"`
 	EventEndAt          string                    `json:"event_end_at"`
 	ExpiresAt           string                    `json:"expires_at"`
+}
+
+type OpportunityAIAnalytics struct {
+	OpportunityID string    `json:"opportunity_id"`
+	Model         string    `json:"model"`
+	Analysis      string    `json:"analysis"`
+	GeneratedAt   time.Time `json:"generated_at"`
 }
 
 type EmployerProfileInput struct {

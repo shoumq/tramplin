@@ -1,10 +1,13 @@
 package handlers
 
 import (
+	"errors"
+
 	"github.com/gofiber/fiber/v2"
 
 	"tramplin/internal/authjwt"
 	"tramplin/internal/dto"
+	aiservice "tramplin/internal/service/ai"
 	publicservice "tramplin/internal/service/public"
 )
 
@@ -27,6 +30,30 @@ type PublicHandler struct {
 // @Router /api/opportunities [get]
 func (h *PublicHandler) ListOpportunities(c *fiber.Ctx) error {
 	data, err := h.service.ListOpportunities(c.Queries())
+	if err != nil {
+		return fail(c, fiber.StatusBadRequest, err)
+	}
+	return respond(c, fiber.StatusOK, data)
+}
+
+// ListRecommendationOpportunities godoc
+// @Summary Список вакансий для создания рекомендации
+// @Tags public
+// @Produce json
+// @Security BearerAuth
+// @Param tag query string false "Фильтр по тегу"
+// @Param work_format query string false "Фильтр по формату работы"
+// @Param search query string false "Поисковый запрос"
+// @Param salary_from query number false "Минимальная зарплата"
+// @Success 200 {object} SuccessResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Router /api/me/recommendation-opportunities [get]
+func (h *PublicHandler) ListRecommendationOpportunities(c *fiber.Ctx) error {
+	if _, err := requiredUserID(c); err != nil {
+		return fail(c, fiber.StatusUnauthorized, err)
+	}
+	data, err := h.service.ListRecommendationOpportunities(c.Queries())
 	if err != nil {
 		return fail(c, fiber.StatusBadRequest, err)
 	}
@@ -65,6 +92,56 @@ func (h *PublicHandler) GetOpportunity(c *fiber.Ctx) error {
 	data, err := h.service.GetOpportunity(c.Params("id"))
 	if err != nil {
 		return fail(c, fiber.StatusNotFound, err)
+	}
+	return respond(c, fiber.StatusOK, data)
+}
+
+// GetNetworking godoc
+// @Summary Сводка нетворкинга
+// @Tags public
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} NetworkingOverviewResponse
+// @Failure 401 {object} ErrorResponse
+// @Router /api/me/networking [get]
+func (h *PublicHandler) GetNetworking(c *fiber.Ctx) error {
+	userID, err := requiredUserID(c)
+	if err != nil {
+		return fail(c, fiber.StatusUnauthorized, err)
+	}
+	data, err := h.service.GetNetworking(userID)
+	if err != nil {
+		return fail(c, fiber.StatusBadRequest, err)
+	}
+	return respond(c, fiber.StatusOK, data)
+}
+
+// AnalyzeOpportunity godoc
+// @Summary ИИ-аналитика вакансии для соискателя
+// @Tags public
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID вакансии"
+// @Success 200 {object} SuccessResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Failure 502 {object} ErrorResponse
+// @Failure 503 {object} ErrorResponse
+// @Router /api/opportunities/{id}/analytics [post]
+func (h *PublicHandler) AnalyzeOpportunity(c *fiber.Ctx) error {
+	if _, err := requiredUserID(c); err != nil {
+		return fail(c, fiber.StatusUnauthorized, err)
+	}
+	data, err := h.service.AnalyzeOpportunity(c.UserContext(), c.Params("id"))
+	if err != nil {
+		status := fiber.StatusBadRequest
+		if errors.Is(err, aiservice.ErrNotConfigured) {
+			status = fiber.StatusServiceUnavailable
+		}
+		if errors.Is(err, aiservice.ErrProvider) {
+			status = fiber.StatusBadGateway
+		}
+		return fail(c, status, err)
 	}
 	return respond(c, fiber.StatusOK, data)
 }
@@ -162,6 +239,61 @@ func (h *PublicHandler) GetStudentProfile(c *fiber.Ctx) error {
 	if err != nil {
 		status := fiber.StatusNotFound
 		if err.Error() == "student profile is available only to authorized users" || err.Error() == "student profile is available only to contacts" {
+			status = fiber.StatusForbidden
+		}
+		return fail(c, status, err)
+	}
+	return respond(c, fiber.StatusOK, data)
+}
+
+// ListStudentResumes godoc
+// @Summary Список резюме студента по ID
+// @Tags public
+// @Produce json
+// @Param id path string true "ID пользователя студента"
+// @Param Authorization header string false "Bearer token"
+// @Success 200 {object} SuccessResponse
+// @Failure 403 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Router /api/students/{id}/resumes [get]
+func (h *PublicHandler) ListStudentResumes(c *fiber.Ctx) error {
+	data, err := h.service.ListStudentResumes(c.Params("id"), optionalUserID(c, h.jwt))
+	if err != nil {
+		status := fiber.StatusBadRequest
+		switch {
+		case errors.Is(err, publicservice.ErrStudentResumesHidden):
+			status = fiber.StatusForbidden
+		case err.Error() == "student profile not found":
+			status = fiber.StatusNotFound
+		case err.Error() == "student profile is available only to authorized users" || err.Error() == "student profile is available only to contacts":
+			status = fiber.StatusForbidden
+		}
+		return fail(c, status, err)
+	}
+	return respond(c, fiber.StatusOK, data)
+}
+
+// GetStudentResume godoc
+// @Summary Получить резюме студента по ID
+// @Tags public
+// @Produce json
+// @Param id path string true "ID пользователя студента"
+// @Param resumeId path string true "ID резюме"
+// @Param Authorization header string false "Bearer token"
+// @Success 200 {object} SuccessResponse
+// @Failure 403 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Router /api/students/{id}/resumes/{resumeId} [get]
+func (h *PublicHandler) GetStudentResume(c *fiber.Ctx) error {
+	data, err := h.service.GetStudentResume(c.Params("id"), c.Params("resumeId"), optionalUserID(c, h.jwt))
+	if err != nil {
+		status := fiber.StatusBadRequest
+		switch {
+		case errors.Is(err, publicservice.ErrStudentResumesHidden):
+			status = fiber.StatusForbidden
+		case err.Error() == "student profile not found" || err.Error() == "resume not found":
+			status = fiber.StatusNotFound
+		case err.Error() == "student profile is available only to authorized users" || err.Error() == "student profile is available only to contacts":
 			status = fiber.StatusForbidden
 		}
 		return fail(c, status, err)

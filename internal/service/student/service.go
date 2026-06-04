@@ -3,6 +3,7 @@ package student
 import (
 	"fmt"
 	"strings"
+	"time"
 	"tramplin/internal/dto"
 	"tramplin/internal/models"
 	"tramplin/internal/repository"
@@ -40,6 +41,31 @@ func (s *Service) CreateResume(userID string, input dto.ResumeInput) (*models.Re
 
 func (s *Service) SetPrimaryResume(userID, resumeID string) (*models.Resume, error) {
 	return s.repo.SetPrimaryResume(userID, resumeID)
+}
+
+func (s *Service) ListResumeWorkExperiences(userID, resumeID string) ([]models.ResumeWorkExperience, error) {
+	return s.repo.ListResumeWorkExperiences(userID, resumeID)
+}
+
+func (s *Service) CreateResumeWorkExperience(userID, resumeID string, input dto.ResumeWorkExperienceInput) (*models.ResumeWorkExperience, error) {
+	experience, err := buildResumeWorkExperience(input)
+	if err != nil {
+		return nil, err
+	}
+	return s.repo.CreateResumeWorkExperience(userID, resumeID, experience)
+}
+
+func (s *Service) UpdateResumeWorkExperience(userID, resumeID, experienceID string, input dto.ResumeWorkExperienceInput) (*models.ResumeWorkExperience, error) {
+	experience, err := buildResumeWorkExperience(input)
+	if err != nil {
+		return nil, err
+	}
+	experience.ID = experienceID
+	return s.repo.UpdateResumeWorkExperience(userID, resumeID, experience)
+}
+
+func (s *Service) DeleteResumeWorkExperience(userID, resumeID, experienceID string) error {
+	return s.repo.DeleteResumeWorkExperience(userID, resumeID, experienceID)
 }
 
 func (s *Service) ListPortfolioProjects(userID string) ([]models.PortfolioProject, error) {
@@ -123,6 +149,14 @@ func (s *Service) ListNotifications(userID string) ([]models.Notification, error
 	return s.repo.ListNotifications(userID)
 }
 
+func (s *Service) MarkAllNotificationsRead(userID string) error {
+	return s.repo.MarkAllNotificationsRead(userID)
+}
+
+func (s *Service) MarkNotificationRead(userID, notificationID string) error {
+	return s.repo.MarkNotificationRead(userID, notificationID)
+}
+
 func studentProfileFromDTO(userID string, input dto.StudentProfileInput) models.StudentProfile {
 	return models.StudentProfile{
 		UserID:              userID,
@@ -145,4 +179,47 @@ func studentProfileFromDTO(userID string, input dto.StudentProfileInput) models.
 		WebsiteURL:          input.WebsiteURL,
 		CityID:              input.CityID,
 	}
+}
+
+func buildResumeWorkExperience(input dto.ResumeWorkExperienceInput) (models.ResumeWorkExperience, error) {
+	positionTitle := strings.TrimSpace(input.PositionTitle)
+	if positionTitle == "" {
+		return models.ResumeWorkExperience{}, fmt.Errorf("position_title is required")
+	}
+	description := strings.TrimSpace(input.Description)
+	if description == "" {
+		return models.ResumeWorkExperience{}, fmt.Errorf("description is required")
+	}
+	companyID := strings.TrimSpace(input.CompanyID)
+	companyName := strings.TrimSpace(input.CompanyName)
+	if companyID == "" && companyName == "" {
+		return models.ResumeWorkExperience{}, fmt.Errorf("company_id or company_name is required")
+	}
+
+	startedAt, err := time.Parse("2006-01-02", strings.TrimSpace(input.StartedAt))
+	if err != nil {
+		return models.ResumeWorkExperience{}, fmt.Errorf("started_at must be in YYYY-MM-DD format")
+	}
+
+	finishedAtValue := strings.TrimSpace(input.FinishedAt)
+	finishedAt := ""
+	if finishedAtValue != "" {
+		parsedFinishedAt, err := time.Parse("2006-01-02", finishedAtValue)
+		if err != nil {
+			return models.ResumeWorkExperience{}, fmt.Errorf("finished_at must be in YYYY-MM-DD format")
+		}
+		if parsedFinishedAt.Before(startedAt) {
+			return models.ResumeWorkExperience{}, fmt.Errorf("finished_at cannot be earlier than started_at")
+		}
+		finishedAt = parsedFinishedAt.Format("2006-01-02")
+	}
+
+	return models.ResumeWorkExperience{
+		CompanyID:     companyID,
+		CompanyName:   companyName,
+		PositionTitle: positionTitle,
+		StartedAt:     startedAt.Format("2006-01-02"),
+		FinishedAt:    finishedAt,
+		Description:   description,
+	}, nil
 }

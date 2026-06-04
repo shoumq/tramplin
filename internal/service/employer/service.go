@@ -2,6 +2,7 @@ package employer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -10,16 +11,20 @@ import (
 	"tramplin/internal/dto"
 	"tramplin/internal/models"
 	"tramplin/internal/repository"
+	aiservice "tramplin/internal/service/ai"
 	"tramplin/internal/storage"
 )
+
+var ErrOpportunityIsNotVacancy = errors.New("opportunity is not a vacancy")
 
 type Service struct {
 	repo    repository.PlatformRepository
 	storage storage.Storage
+	ai      *aiservice.Client
 }
 
-func New(repo repository.PlatformRepository, storage storage.Storage) *Service {
-	return &Service{repo: repo, storage: storage}
+func New(repo repository.PlatformRepository, storage storage.Storage, aiClient *aiservice.Client) *Service {
+	return &Service{repo: repo, storage: storage, ai: aiClient}
 }
 
 func (s *Service) GetCompany(userID string) (*models.Company, error) {
@@ -91,6 +96,26 @@ func (s *Service) UpdateOpportunity(userID, opportunityID string, input dto.Oppo
 		return nil, err
 	}
 	return s.repo.UpdateEmployerOpportunity(userID, buildOpportunity(userID, opportunityID, input))
+}
+
+func (s *Service) AnalyzeOpportunity(ctx context.Context, userID, opportunityID string) (*dto.OpportunityAIAnalytics, error) {
+	opportunity, err := s.repo.GetEmployerOpportunity(userID, opportunityID)
+	if err != nil {
+		return nil, err
+	}
+	if opportunity.OpportunityType != "vacancy" {
+		return nil, ErrOpportunityIsNotVacancy
+	}
+	analysis, err := s.ai.AnalyzeVacancy(ctx, *opportunity)
+	if err != nil {
+		return nil, err
+	}
+	return &dto.OpportunityAIAnalytics{
+		OpportunityID: opportunity.ID,
+		Model:         s.ai.Model(),
+		Analysis:      analysis,
+		GeneratedAt:   time.Now(),
+	}, nil
 }
 
 func (s *Service) ListApplications(userID, opportunityID string) ([]models.Application, error) {

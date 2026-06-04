@@ -61,8 +61,13 @@ type PlatformRepository interface {
 	ListPublicStudentProfiles(filter StudentFilter) ([]models.PublicStudentProfile, error)
 	UpsertStudentProfile(profile models.StudentProfile, actorID string) (*models.StudentProfile, error)
 	ListResumes(studentUserID string) ([]models.Resume, error)
+	GetResume(studentUserID, resumeID string) (*models.Resume, error)
 	CreateResume(resume models.Resume) (*models.Resume, error)
 	SetPrimaryResume(studentUserID, resumeID string) (*models.Resume, error)
+	ListResumeWorkExperiences(studentUserID, resumeID string) ([]models.ResumeWorkExperience, error)
+	CreateResumeWorkExperience(studentUserID, resumeID string, experience models.ResumeWorkExperience) (*models.ResumeWorkExperience, error)
+	UpdateResumeWorkExperience(studentUserID, resumeID string, experience models.ResumeWorkExperience) (*models.ResumeWorkExperience, error)
+	DeleteResumeWorkExperience(studentUserID, resumeID, experienceID string) error
 	ListPortfolioProjects(studentUserID string) ([]models.PortfolioProject, error)
 	CreatePortfolioProject(project models.PortfolioProject) (*models.PortfolioProject, error)
 	ListStudentApplications(studentUserID string) ([]models.Application, error)
@@ -74,10 +79,13 @@ type PlatformRepository interface {
 	RemoveFavoriteCompany(userID, companyID string) error
 	ListContacts(userID string) ([]models.User, error)
 	ListContactRequests(userID string) ([]models.ContactRequest, error)
+	ListNetworkingSuggestions(userID string, limit int) ([]models.NetworkingSuggestion, error)
 	CreateContactRequest(senderUserID, receiverUserID, message string) (*models.ContactRequest, error)
 	UpdateContactRequestStatus(requestID, userID, status string) (*models.ContactRequest, error)
 	CreateRecommendation(rec models.Recommendation) (*models.Recommendation, error)
 	ListNotifications(userID string) ([]models.Notification, error)
+	MarkAllNotificationsRead(userID string) error
+	MarkNotificationRead(userID, notificationID string) error
 	CreateChatConversation(userID, participantUserID, opportunityID string) (*models.ChatConversation, error)
 	GetChatConversation(userID, conversationID string) (*models.ChatConversation, error)
 	ListChatConversations(userID string) ([]models.ChatConversation, error)

@@ -204,6 +204,21 @@ definitions:
       title:
         type: string
     type: object
+  dto.ResumeWorkExperienceInput:
+    properties:
+      company_id:
+        type: string
+      company_name:
+        type: string
+      description:
+        type: string
+      finished_at:
+        type: string
+      position_title:
+        type: string
+      started_at:
+        type: string
+    type: object
   dto.StatusPayload:
     properties:
       comment:
@@ -290,6 +305,14 @@ definitions:
         example: error
         type: string
     type: object
+  handlers.NetworkingOverviewResponse:
+    properties:
+      data:
+        $ref: '#/definitions/models.NetworkingOverview'
+      status:
+        example: ok
+        type: string
+    type: object
   handlers.SuccessResponse:
     properties:
       data: {}
@@ -329,6 +352,92 @@ definitions:
         type: string
       unread_count:
         type: integer
+      updated_at:
+        type: string
+    type: object
+  models.ContactRequest:
+    properties:
+      created_at:
+        type: string
+      direction:
+        type: string
+      id:
+        type: string
+      message:
+        type: string
+      receiver_avatar_url:
+        type: string
+      receiver_name:
+        type: string
+      receiver_user_id:
+        type: string
+      sender_avatar_url:
+        type: string
+      sender_name:
+        type: string
+      sender_user_id:
+        type: string
+      status:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.NetworkingOverview:
+    properties:
+      contacts:
+        items:
+          $ref: '#/definitions/models.User'
+        type: array
+      incoming_requests:
+        items:
+          $ref: '#/definitions/models.ContactRequest'
+        type: array
+      outgoing_requests:
+        items:
+          $ref: '#/definitions/models.ContactRequest'
+        type: array
+      suggested_people:
+        items:
+          $ref: '#/definitions/models.NetworkingSuggestion'
+        type: array
+      user_id:
+        type: string
+    type: object
+  models.NetworkingSuggestion:
+    properties:
+      mutual_contacts_count:
+        type: integer
+      reason:
+        type: string
+      source:
+        type: string
+      user:
+        $ref: '#/definitions/models.User'
+    type: object
+  models.User:
+    properties:
+      avatar_object:
+        type: string
+      avatar_url:
+        type: string
+      created_at:
+        type: string
+      display_name:
+        type: string
+      email:
+        type: string
+      email_verified:
+        type: boolean
+      id:
+        type: string
+      is_online:
+        type: boolean
+      last_login_at:
+        type: string
+      last_seen_at:
+        type: string
+      status:
+        type: string
       updated_at:
         type: string
     type: object
@@ -1074,6 +1183,38 @@ paths:
       summary: Обновить возможность работодателя
       tags:
       - employer
+  /api/employer/opportunities/{id}/analytics:
+    post:
+      parameters:
+      - description: ID вакансии
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: ИИ-аналитика вакансии работодателя
+      tags:
+      - employer
   /api/employer/opportunities/{id}/applications:
     get:
       parameters:
@@ -1522,6 +1663,24 @@ paths:
       summary: Добавить возможность в избранное
       tags:
       - student
+  /api/me/networking:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.NetworkingOverviewResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Сводка нетворкинга
+      tags:
+      - public
   /api/me/notifications:
     get:
       produces:
@@ -1596,6 +1755,45 @@ paths:
       summary: Создать проект портфолио
       tags:
       - student
+  /api/me/recommendation-opportunities:
+    get:
+      parameters:
+      - description: Фильтр по тегу
+        in: query
+        name: tag
+        type: string
+      - description: Фильтр по формату работы
+        in: query
+        name: work_format
+        type: string
+      - description: Поисковый запрос
+        in: query
+        name: search
+        type: string
+      - description: Минимальная зарплата
+        in: query
+        name: salary_from
+        type: number
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Список вакансий для создания рекомендации
+      tags:
+      - public
   /api/me/recommendations:
     post:
       consumes:
@@ -1707,6 +1905,142 @@ paths:
       summary: Сделать резюме основным
       tags:
       - student
+  /api/me/resumes/{id}/work-experiences:
+    get:
+      parameters:
+      - description: ID резюме
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Список опыта работы в резюме
+      tags:
+      - student
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID резюме
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Данные опыта работы
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ResumeWorkExperienceInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Добавить опыт работы в резюме
+      tags:
+      - student
+  /api/me/resumes/{id}/work-experiences/{experienceId}:
+    delete:
+      parameters:
+      - description: ID резюме
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: ID опыта работы
+        in: path
+        name: experienceId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Удалить опыт работы из резюме
+      tags:
+      - student
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID резюме
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: ID опыта работы
+        in: path
+        name: experienceId
+        required: true
+        type: string
+      - description: Данные опыта работы
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ResumeWorkExperienceInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Обновить опыт работы в резюме
+      tags:
+      - student
   /api/me/student-profile:
     get:
       produces:
@@ -1816,6 +2150,42 @@ paths:
           schema:
             $ref: '#/definitions/handlers.ErrorResponse'
       summary: Получить возможность по ID
+      tags:
+      - public
+  /api/opportunities/{id}/analytics:
+    post:
+      parameters:
+      - description: ID вакансии
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: ИИ-аналитика вакансии для соискателя
       tags:
       - public
   /api/opportunities/{id}/applications:
@@ -1952,6 +2322,71 @@ paths:
           schema:
             $ref: '#/definitions/handlers.ErrorResponse'
       summary: Получить публичный профиль студента по ID
+      tags:
+      - public
+  /api/students/{id}/resumes:
+    get:
+      parameters:
+      - description: ID пользователя студента
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Bearer token
+        in: header
+        name: Authorization
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Список резюме студента по ID
+      tags:
+      - public
+  /api/students/{id}/resumes/{resumeId}:
+    get:
+      parameters:
+      - description: ID пользователя студента
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: ID резюме
+        in: path
+        name: resumeId
+        required: true
+        type: string
+      - description: Bearer token
+        in: header
+        name: Authorization
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Получить резюме студента по ID
       tags:
       - public
   /api/tags:

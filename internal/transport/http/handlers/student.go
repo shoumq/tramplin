@@ -127,6 +127,107 @@ func (h *StudentHandler) SetPrimaryResume(c *fiber.Ctx) error {
 	return respond(c, fiber.StatusOK, data)
 }
 
+// ListResumeWorkExperiences godoc
+// @Summary Список опыта работы в резюме
+// @Tags student
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID резюме"
+// @Success 200 {object} SuccessResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Router /api/me/resumes/{id}/work-experiences [get]
+func (h *StudentHandler) ListResumeWorkExperiences(c *fiber.Ctx) error {
+	userID, err := requiredUserID(c)
+	if err != nil {
+		return fail(c, fiber.StatusUnauthorized, err)
+	}
+	data, err := h.service.ListResumeWorkExperiences(userID, c.Params("id"))
+	if err != nil {
+		return fail(c, fiber.StatusBadRequest, err)
+	}
+	return respond(c, fiber.StatusOK, data)
+}
+
+// CreateResumeWorkExperience godoc
+// @Summary Добавить опыт работы в резюме
+// @Tags student
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID резюме"
+// @Param payload body dto.ResumeWorkExperienceInput true "Данные опыта работы"
+// @Success 201 {object} SuccessResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Router /api/me/resumes/{id}/work-experiences [post]
+func (h *StudentHandler) CreateResumeWorkExperience(c *fiber.Ctx) error {
+	userID, err := requiredUserID(c)
+	if err != nil {
+		return fail(c, fiber.StatusUnauthorized, err)
+	}
+	var input dto.ResumeWorkExperienceInput
+	if err := parseBody(c, &input); err != nil {
+		return fail(c, fiber.StatusBadRequest, err)
+	}
+	data, err := h.service.CreateResumeWorkExperience(userID, c.Params("id"), input)
+	if err != nil {
+		return fail(c, fiber.StatusBadRequest, err)
+	}
+	return respond(c, fiber.StatusCreated, data)
+}
+
+// UpdateResumeWorkExperience godoc
+// @Summary Обновить опыт работы в резюме
+// @Tags student
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID резюме"
+// @Param experienceId path string true "ID опыта работы"
+// @Param payload body dto.ResumeWorkExperienceInput true "Данные опыта работы"
+// @Success 200 {object} SuccessResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Router /api/me/resumes/{id}/work-experiences/{experienceId} [patch]
+func (h *StudentHandler) UpdateResumeWorkExperience(c *fiber.Ctx) error {
+	userID, err := requiredUserID(c)
+	if err != nil {
+		return fail(c, fiber.StatusUnauthorized, err)
+	}
+	var input dto.ResumeWorkExperienceInput
+	if err := parseBody(c, &input); err != nil {
+		return fail(c, fiber.StatusBadRequest, err)
+	}
+	data, err := h.service.UpdateResumeWorkExperience(userID, c.Params("id"), c.Params("experienceId"), input)
+	if err != nil {
+		return fail(c, fiber.StatusBadRequest, err)
+	}
+	return respond(c, fiber.StatusOK, data)
+}
+
+// DeleteResumeWorkExperience godoc
+// @Summary Удалить опыт работы из резюме
+// @Tags student
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID резюме"
+// @Param experienceId path string true "ID опыта работы"
+// @Success 200 {object} SuccessResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Router /api/me/resumes/{id}/work-experiences/{experienceId} [delete]
+func (h *StudentHandler) DeleteResumeWorkExperience(c *fiber.Ctx) error {
+	userID, err := requiredUserID(c)
+	if err != nil {
+		return fail(c, fiber.StatusUnauthorized, err)
+	}
+	if err := h.service.DeleteResumeWorkExperience(userID, c.Params("id"), c.Params("experienceId")); err != nil {
+		return fail(c, fiber.StatusBadRequest, err)
+	}
+	return respond(c, fiber.StatusOK, fiber.Map{"deleted": true})
+}
+
 // ListPortfolioProjects godoc
 // @Summary Список проектов портфолио
 // @Tags student
@@ -465,4 +566,26 @@ func (h *StudentHandler) ListNotifications(c *fiber.Ctx) error {
 		return fail(c, fiber.StatusBadRequest, err)
 	}
 	return respond(c, fiber.StatusOK, data)
+}
+
+func (h *StudentHandler) MarkAllNotificationsRead(c *fiber.Ctx) error {
+	userID, err := requiredUserID(c)
+	if err != nil {
+		return fail(c, fiber.StatusUnauthorized, err)
+	}
+	if err := h.service.MarkAllNotificationsRead(userID); err != nil {
+		return fail(c, fiber.StatusBadRequest, err)
+	}
+	return respond(c, fiber.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (h *StudentHandler) MarkNotificationRead(c *fiber.Ctx) error {
+	userID, err := requiredUserID(c)
+	if err != nil {
+		return fail(c, fiber.StatusUnauthorized, err)
+	}
+	if err := h.service.MarkNotificationRead(userID, c.Params("id")); err != nil {
+		return fail(c, fiber.StatusBadRequest, err)
+	}
+	return respond(c, fiber.StatusOK, map[string]string{"status": "ok"})
 }
